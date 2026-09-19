@@ -1,0 +1,21 @@
+TEMPLATE IMPORT EXCEL - Kapasitas 3000 SKU Max
+
+Nama file: template_import_3000sku.xlsx (max 3000 baris)
+Batch: 500/baris - auto 6 batch
+
+Header wajib (sesuai foto kamu):
+Part Code | Part Name | Motor Type | Retail Price (ex TAX) IDR | TAX 11% IDR | Harga Jual konsumen +Pajak | stok | alamat
+
+Header wajib (sesuai foto kamu):
+Part Code | Part Name | Motor Type | Retail Price (ex TAX) IDR | TAX 11% IDR | Harga Jual konsumen +Pajak | stok | alamat
+
+Contoh baris:
+05523M79K500 | LEFT SIDE CONNECTOR STICKER | AX 180 (VIENTO) ABS | 17120 | 1883 | 19003 | 8 | A-03-02-M07
+
+Catatan:
+- TAX 11% & Harga Jual akan auto hitung jika kosong
+- Motor Type bisa diisi banyak dipisah koma: "AX 180, VIENTO"
+- Substitusi isi di kolom terpisah: substitusi_kode (pisah koma)
+- Simpan sebagai .xlsx lalu import via Web Admin > Master > Import Excel
+
+Lihat lib/features/stock/stock_repository.dart -> importFromExcel()
