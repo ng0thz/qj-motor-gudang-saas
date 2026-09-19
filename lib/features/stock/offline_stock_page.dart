@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'import_update_page.dart';
 
 class OfflineStockPageFull extends StatefulWidget {
   const OfflineStockPageFull({super.key});
@@ -39,7 +40,8 @@ class _OfflineStockPageFullState extends State<OfflineStockPageFull> {
       return d['kode'].toString().toLowerCase().contains(lq) || d['nama'].toString().toLowerCase().contains(lq);
     }).take(100).toList();
     return Scaffold(
-      appBar: AppBar(title: Text('QJ Motor Offline - ${data.length} SKU'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white),
+      appBar: AppBar(title: Text('QJ Motor - ${data.length} SKU'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
+        actions: [IconButton(icon: const Icon(Icons.upload_file), tooltip: 'Import update harga', onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> const ImportUpdatePage())))]),
       body: Column(children: [
         Padding(padding: const EdgeInsets.all(12), child: TextField(onChanged: (v)=> setState(()=> q=v), decoration: const InputDecoration(hintText: 'Cari 05523M79K500 ...', prefixIcon: Icon(Icons.search), border: OutlineInputBorder()))),
         Expanded(child: ListView.builder(itemCount: filtered.length, itemBuilder: (_,i){
