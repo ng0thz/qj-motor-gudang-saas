@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'stock_model.dart';
 import 'stock_repository.dart';
+import 'scan_page.dart';
+import 'rack_master.dart';
+import 'rack_picker.dart';
+import 'label_print_page.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -14,22 +17,15 @@ class _StockPageState extends State<StockPage> {
   final ctrlSearch = TextEditingController();
 
   void _scanBarcode() async {
-    showModalBottomSheet(context: context, isScrollControlled: true, builder: (_) {
-      return SizedBox(height: 500, child: MobileScanner(
-        onDetect: (cap) async {
-          final code = cap.barcodes.first.rawValue;
-          if (code==null) return;
-          Navigator.pop(context);
-          final part = await repo.getByBarcode(code);
-          if (!mounted) return;
-          if (part==null) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tidak ditemukan: $code')));
-          } else {
-            _showDetail(part);
-          }
-        },
-      ));
-    });
+    final code = await openScan(context, title: 'QJ Motor - Scan');
+    if (code == null || !mounted) return;
+    final part = await repo.getByBarcode(code);
+    if (!mounted) return;
+    if (part == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tidak ditemukan: $code')));
+    } else {
+      _showDetail(part);
+    }
   }
 
   void _showDetail(Sparepart p) {
@@ -76,11 +72,28 @@ class _StockPageState extends State<StockPage> {
             const SizedBox(height: 8),
             Text('Kompatibel: ${p.kompatibel.join(", ")}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Container(padding: const EdgeInsets.all(8), color: tierInfo(tierForJenis(p.jenisPart, p.kategori)).color.withOpacity(0.12),
+            child: Text('Rak: ${tierForJenis(p.jenisPart, p.kategori)} (Zona ${tierInfo(tierForJenis(p.jenisPart, p.kategori)).zona}) • ${p.alamat.isEmpty ? 'Belum ada alamat' : p.alamat}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+          const SizedBox(height: 12),
           Row(children: [
             Expanded(child: ElevatedButton.icon(onPressed: ()=> _inOut(p, 'IN'), icon: const Icon(Icons.add), label: const Text('IN +'))),
             const SizedBox(width: 8),
             Expanded(child: ElevatedButton.icon(onPressed: ()=> _inOut(p, 'OUT'), style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), icon: const Icon(Icons.remove), label: const Text('OUT -'))),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.grid_view), label: const Text('Pilih Rak'), onPressed: () async {
+              final alamat = await openRackPicker(context, jenisPart: p.jenisPart, kategoriMoving: p.kategori, initialAlamat: p.alamat);
+              if (alamat != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Alamat: $alamat')));
+            })),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.picture_as_pdf), label: const Text('Label PDF'), onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => LabelPrintPage(items: [
+                LabelItem(kode: p.kode, nama: p.nama, jual: p.harga.jual, alamat: p.alamat.isEmpty ? tierForJenis(p.jenisPart, p.kategori) : p.alamat)
+              ])));
+            })),
           ]),
           const SizedBox(height: 8),
           SizedBox(width: double.infinity, child: OutlinedButton(onPressed: (){}, child: const Text('History • Pindah Rak'))),
