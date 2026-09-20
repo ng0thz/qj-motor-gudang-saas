@@ -32,6 +32,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Firebase Android BoM baru butuh minSdk 23; template lama masih 21.
+      - name: Naikkan minSdk untuk Firebase BoM baru
+        run: |
+          sed -i -E "s/minSdkVersion flutter\.minSdkVersion/minSdkVersion 23/" android/app/build.gradle || true
+          sed -i -E "s/minSdk = flutter\.minSdkVersion/minSdk = 23/" android/app/build.gradle || true
+          grep -n "minSdk" android/app/build.gradle || true
+
       - name: Build APK Release (QJ Motor)
         run: flutter build apk --release --dart-define=TENANT_ID=qj-motor
 
