@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'features/auth/auth_gate.dart';
 
+// Catatan: JANGAN import firebase_options.dart di sini — file itu di-gitignore
+// agar key asli tidak bocor. Setelah `flutterfire configure` (lihat
+// docs/WEB_DESKTOP.md langkah aktivasi), ganti pemanggilan di bawah menjadi:
+//   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+// dan tambahkan: import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   bool firebaseOk = true;
@@ -9,7 +14,7 @@ void main() async {
     await Firebase.initializeApp();
   } catch (e) {
     firebaseOk = false;
-    debugPrint('Firebase init failed (no google-services.json) - running offline mode: $e');
+    debugPrint('Firebase init failed - running offline mode: $e');
   }
   runApp(GudangSaaSApp(firebaseOk: firebaseOk));
 }
