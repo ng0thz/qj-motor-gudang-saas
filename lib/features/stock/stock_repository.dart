@@ -234,6 +234,50 @@ class StockRepository {
     return q.snapshots().map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
+  // Laporan closing harian: agregasi WO + mutasi hari ini + stok kritis + PO
+  Future<List<Map<String, dynamic>>> fetchMovementsSince(DateTime start) async {
+    final s = await _fs.col('stock_movements')
+        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .orderBy('timestamp', descending: true).limit(1000).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchWOSince(DateTime start) async {
+    final s = await _fs.col('work_orders')
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .orderBy('createdAt', descending: true).limit(500).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchPOsSince(DateTime start) async {
+    final s = await _fs.col('purchase_orders')
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .orderBy('createdAt', descending: true).limit(100).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<void> saveDailyReport({required String dateKey, required String text, required Map<String, dynamic> summary}) async {
+    await _fs.col('daily_reports').doc(dateKey).set({
+      'text': text, 'summary': summary,
+      'createdAt': FieldValue.serverTimestamp(),
+      'oleh': _fs.auth.currentUser?.uid ?? 'demo',
+    }, SetOptions(merge: true));
+  }
+
+  Stream<List<Map<String, dynamic>>> watchRecipients() {
+    return _fs.col('report_recipients').orderBy('role').snapshots().map(
+      (s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  Future<void> upsertRecipient({String? id, required String nama, required String role, required String wa}) async {
+    final ref = id == null ? _fs.col('report_recipients').doc() : _fs.col('report_recipients').doc(id);
+    await ref.set({'nama': nama, 'role': role, 'wa': wa, 'aktif': true, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+  }
+
+  Future<void> deleteRecipient(String id) async {
+    await _fs.col('report_recipients').doc(id).delete();
+  }
+
   // Import Excel foto kamu: Part Code, Part Name, Motor Type, Retail, TAX, Harga Jual - Support 3000 SKU (batch 500)
   Future<void> importFromExcel(List<Map<String,dynamic>> rows) async {
     // Firestore batch max 500 writes - untuk 3000 SKU butuh 6 batch

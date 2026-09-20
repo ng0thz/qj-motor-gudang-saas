@@ -13,6 +13,7 @@ import 'batch_page.dart';
 import 'workorder_page.dart';
 import 'label_batch_page.dart';
 import 'dashboard_page.dart';
+import 'closing_report_page.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -162,6 +163,7 @@ class _StockPageState extends State<StockPage> {
           IconButton(tooltip: 'Opname', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OpnamePage())), icon: const Icon(Icons.fact_check)),
           IconButton(tooltip: 'WO', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkOrderPage())), icon: const Icon(Icons.build)),
           IconButton(tooltip: 'Label batch', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LabelBatchPage())), icon: const Icon(Icons.print)),
+          IconButton(tooltip: 'Closing harian', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ClosingReportPage())), icon: const Icon(Icons.assessment)),
           IconButton(onPressed: _scanBarcode, icon: const Icon(Icons.qr_code_scanner)),
         ],
       ),
