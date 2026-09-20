@@ -1,0 +1,26 @@
+// Session login: tenant + role + email user aktif.
+// Diisi AuthService saat login; dibaca FirebaseService & UI untuk gating.
+class AuthSession {
+  static final AuthSession instance = AuthSession._();
+  AuthSession._();
+
+  String tenantId = 'qj-motor';
+  String role = '';
+  String email = '';
+  String uid = '';
+
+  bool get isLoggedIn => uid.isNotEmpty;
+  bool get isOps => role == 'ops_manager' || role == 'super_admin';
+  bool get isStaff => role == 'staff_gudang' || isOps;
+  bool get isFrontdesk => role == 'frontdesk' || isOps;
+  bool get canApprove => isOps;
+  bool get canManageMaster => isStaff; // spareparts, rak, barcode, harga
+  bool get canTransact => role == 'staff_gudang' || role == 'frontdesk' || isOps;
+
+  void clear() {
+    tenantId = 'qj-motor';
+    role = '';
+    email = '';
+    uid = '';
+  }
+}

@@ -1,24 +1,52 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'session.dart';
 
 class AuthService {
   final _auth = FirebaseAuth.instance;
+  Stream<User?> get authState => _auth.authStateChanges();
 
-  // Staff/Frontdesk/Ops: Email+Pass
-  Future<UserCredential> loginEmail(String email, String pass) {
-    return _auth.signInWithEmailAndPassword(email: email, password: pass);
+  // Login email+password, lalu muat tenantId + role.
+  // Urutan: custom claims (idToken) -> fallback dokumen users/{uid}.
+  Future<void> loginEmail(String email, String pass) async {
+    final cred = await _auth.signInWithEmailAndPassword(email: email.trim(), password: pass);
+    await refreshSession(cred.user);
   }
 
-  // Mekanik: QR PIN -> Anonymous + custom claim via Function
-  Future<UserCredential> loginMekanik(String mekanikId, String pin) async {
-    // Untuk MVP: Anonymous login, role disimpan di Firestore users/{uid}
-    // Prod: panggil Function verifyMekanikPin({mekanikId, pin}) -> setCustomClaim
-    return await _auth.signInAnonymously();
+  Future<void> refreshSession([User? user]) async {
+    user ??= _auth.currentUser;
+    if (user == null) return;
+    final s = AuthSession.instance;
+    s.uid = user.uid;
+    s.email = user.email ?? '';
+    String tenant = '';
+    String role = '';
+    try {
+      final token = await user.getIdTokenResult(true);
+      tenant = '${token.claims?['tenantId'] ?? ''}';
+      role = '${token.claims?['role'] ?? ''}';
+    } catch (_) {}
+    if (tenant.isEmpty || role.isEmpty) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        tenant = tenant.isEmpty ? '${doc.data()?['tenantId'] ?? ''}' : tenant;
+        role = role.isEmpty ? '${doc.data()?['role'] ?? ''}' : role;
+      } catch (_) {}
+    }
+    s.tenantId = tenant.isEmpty ? 'qj-motor' : tenant;
+    s.role = role;
   }
 
-  Future<void> logout() => _auth.signOut();
+  // Mekanik: login anonymous, role diambil dari users/{uid} yg dibuat Ops.
+  // Prod ideal: Function verifyMekanikPin -> setCustomClaim (belum dibuat).
+  Future<UserCredential> loginMekanik() async {
+    final cred = await _auth.signInAnonymously();
+    await refreshSession(cred.user);
+    return cred;
+  }
 
-  String? get role {
-    // Baca dari ID token custom claim (prod) atau Firestore users (dev)
-    return _auth.currentUser?.displayName; // placeholder
+  Future<void> logout() async {
+    await _auth.signOut();
+    AuthSession.instance.clear();
   }
 }

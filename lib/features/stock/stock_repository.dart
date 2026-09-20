@@ -99,6 +99,7 @@ class StockRepository {
     final batch = _fs.db.batch();
     final movRef = _fs.col('stock_movements').doc();
     batch.set(movRef, {
+      'tenantId': _fs.effectiveTenantId,
       'tipe': tipe, 'kode_part': kode, 'qty': qty,
       'kendaraan': nopol!=null ? {'nopol':nopol} : null,
       'mekanik': mekanikId!=null ? {'id':mekanikId,'nama':mekanikNama} : null,
@@ -135,6 +136,7 @@ class StockRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     batch.set(_fs.col('stock_movements').doc(), {
+      'tenantId': _fs.effectiveTenantId,
       'tipe': 'PINDAH', 'kode_part': kode, 'qty': 0,
       'alamatBaru': alamatBaru, 'catatan': alasan ?? 'Pindah rak',
       'oleh': _fs.auth.currentUser?.uid ?? 'demo',
@@ -166,6 +168,7 @@ class StockRepository {
 
   Future<void> createPO({required Map<String, int> items, String? supplier, String? catatan}) async {
     await _fs.col('purchase_orders').add({
+      'tenantId': _fs.effectiveTenantId,
       'items': items.entries.map((e) => {'kode': e.key, 'qty': e.value}).toList(),
       'supplier': supplier ?? '', 'catatan': catatan ?? '',
       'status': 'DRAFT', // DRAFT|ORDER|TERIMA
@@ -218,6 +221,7 @@ class StockRepository {
   // 2. Opname + variance + approval
   Future<String> startOpname({required List<String> scopeZona, required String catatan}) async {
     final ref = await _fs.col('stock_opnames').add({
+      'tenantId': _fs.effectiveTenantId,
       'scopeZona': scopeZona, 'catatan': catatan,
       'status': 'COUNTING', // COUNTING|REVIEW|APPROVED|REJECTED
       'createdAt': FieldValue.serverTimestamp(),
@@ -249,6 +253,7 @@ class StockRepository {
         if (selisih != 0) {
           final mov = _fs.col('stock_movements').doc();
           batch.set(mov, {
+            'tenantId': _fs.effectiveTenantId,
             'tipe': 'OPNAME', 'kode_part': m['kode'], 'qty': selisih.abs(),
             'catatan': 'Adjust opname $opnameId (${selisih > 0 ? '+' : ''}$selisih)',
             'oleh': _fs.auth.currentUser?.uid ?? 'demo',
@@ -274,6 +279,7 @@ class StockRepository {
     int labourTotal = 0, int partsTotal = 0,
   }) async {
     final ref = await _fs.col('work_orders').add({
+      'tenantId': _fs.effectiveTenantId,
       'nopol': nopol, 'motor': motor, 'model': model, 'motorClass': model.isEmpty ? '' : kelasOf(model), 'tipe': tipe,
       'kategori': kategori, 'kuponNo': kuponNo, 'kuponStempel': kuponStempel,
       'keluhan': keluhan, 'mekanik': mekanik ?? '',
@@ -306,7 +312,7 @@ class StockRepository {
     for (final r in rows) {
       final id = (r['faultCode'] ?? '').toString().isNotEmpty ? r['faultCode'] : (r['job'] ?? '').toString();
       if (id.toString().isEmpty) continue;
-      batch.set(_fs.col(col).doc(id.toString()), {...r, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      batch.set(_fs.col(col).doc(id.toString()), {...r, 'tenantId': _fs.effectiveTenantId, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
       n++;
       if (n >= 400) { await batch.commit(); batch = _fs.db.batch(); n = 0; }
     }
@@ -365,6 +371,7 @@ class StockRepository {
 
   Future<void> saveDailyReport({required String dateKey, required String text, required Map<String, dynamic> summary}) async {
     await _fs.col('daily_reports').doc(dateKey).set({
+      'tenantId': _fs.effectiveTenantId,
       'text': text, 'summary': summary,
       'createdAt': FieldValue.serverTimestamp(),
       'oleh': _fs.auth.currentUser?.uid ?? 'demo',
@@ -378,7 +385,7 @@ class StockRepository {
 
   Future<void> upsertRecipient({String? id, required String nama, required String role, required String wa}) async {
     final ref = id == null ? _fs.col('report_recipients').doc() : _fs.col('report_recipients').doc(id);
-    await ref.set({'nama': nama, 'role': role, 'wa': wa, 'aktif': true, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+    await ref.set({'tenantId': _fs.effectiveTenantId, 'nama': nama, 'role': role, 'wa': wa, 'aktif': true, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
   }
 
   Future<void> deleteRecipient(String id) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'stock_repository.dart';
 import 'stock_model.dart';
+import '../../core/session.dart';
 
 // Opname: COUNTING -> REVIEW (variance) -> APPROVED (auto adjust)
 class OpnamePage extends StatefulWidget {
@@ -61,9 +62,14 @@ class _OpnamePageState extends State<OpnamePage> {
           Expanded(child: ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             onPressed: opnameId == null ? null : () async {
+              if (!AuthSession.instance.canApprove) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Hanya Ops Manager yang bisa Approve.')));
+                return;
+              }
               await repo.approveOpname(opnameId: opnameId!, approve: true);
               if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Approved: selisih auto-adjust')));
-            }, child: const Text('Approve'))),
+            }, child: Text(AuthSession.instance.canApprove ? 'Approve' : 'Approve (Ops)'))),
         ]),
       ])),
     );

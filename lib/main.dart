@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'features/stock/stock_page.dart';
-import 'features/stock/offline_stock_page.dart';
+import 'features/auth/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +22,7 @@ class GudangSaaSApp extends StatelessWidget {
     return MaterialApp(
       title: 'Gudang SaaS - QJ Motor 4385 SKU',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF1B2A4A)),
-      home: firebaseOk ? const StockPage() : const OfflineStockPageFull(),
+      home: AuthGate(firebaseOk: firebaseOk),
       debugShowCheckedModeBanner: false,
     );
   }

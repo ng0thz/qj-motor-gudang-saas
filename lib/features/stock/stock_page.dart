@@ -17,6 +17,8 @@ import 'label_batch_page.dart';
 import 'dashboard_page.dart';
 import 'closing_report_page.dart';
 import 'motor_class.dart';
+import '../../core/auth_service.dart';
+import '../../core/session.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -173,6 +175,29 @@ class _StockPageState extends State<StockPage> {
           IconButton(tooltip: 'Label batch', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LabelBatchPage())), icon: const Icon(Icons.print)),
           IconButton(tooltip: 'Closing harian', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ClosingReportPage())), icon: const Icon(Icons.assessment)),
           IconButton(onPressed: _scanBarcode, icon: const Icon(Icons.qr_code_scanner)),
+          PopupMenuButton<String>(
+            tooltip: 'Akun',
+            icon: const Icon(Icons.account_circle),
+            onSelected: (v) async {
+              if (v == 'logout') {
+                await AuthService().logout();
+                // AuthGate otomatis kembali ke LoginPage
+              }
+            },
+            itemBuilder: (_) {
+              final s = AuthSession.instance;
+              return [
+                PopupMenuItem(enabled: false, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(s.email.isEmpty ? 'Tanpa login' : s.email, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text('${s.role.isEmpty ? '-' : s.role} • ${s.tenantId}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ])),
+                const PopupMenuDivider(),
+                const PopupMenuItem(value: 'logout', child: Row(children: [
+                  Icon(Icons.logout, size: 18), SizedBox(width: 8), Text('Keluar'),
+                ])),
+              ];
+            },
+          ),
         ],
       ),
       body: Column(children: [
