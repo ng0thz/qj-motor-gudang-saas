@@ -218,14 +218,50 @@ class StockRepository {
     await batch.commit();
   }
 
-  // 5. Work order servis link ke OUT
-  Future<String> createWO({required String nopol, required String motor, required String keluhan, String? mekanik}) async {
+  // 5. Work order servis link ke OUT (+ jobs FRT + parts + total)
+  Future<String> createWO({
+    required String nopol, required String motor, required String keluhan, String? mekanik,
+    String model = '', String tipe = 'SERVICE', // SERVICE|WARRANTY
+    List<Map<String, dynamic>> jobs = const [], List<Map<String, dynamic>> parts = const [],
+    int labourTotal = 0, int partsTotal = 0,
+  }) async {
     final ref = await _fs.col('work_orders').add({
-      'nopol': nopol, 'motor': motor, 'keluhan': keluhan, 'mekanik': mekanik ?? '',
+      'nopol': nopol, 'motor': motor, 'model': model, 'tipe': tipe,
+      'keluhan': keluhan, 'mekanik': mekanik ?? '',
+      'jobs': jobs, 'parts': parts,
+      'labourTotal': labourTotal, 'partsTotal': partsTotal,
+      'grandTotal': labourTotal + partsTotal,
       'status': 'OPEN', // OPEN|PROSES|SELESAI|BATAL
       'createdAt': FieldValue.serverTimestamp(),
     });
     return ref.id;
+  }
+
+  Future<void> updateWO(String id, Map<String, dynamic> data) async {
+    await _fs.col('work_orders').doc(id).set({
+      ...data, 'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // Master FRT (frt_warranty / frt_service), doc id = faultCode (warranty) / slug job (service)
+  Future<List<Map<String, dynamic>>> fetchFrt(String tipe) async {
+    final col = tipe == 'WARRANTY' ? 'frt_warranty' : 'frt_service';
+    final s = await _fs.col(col).limit(500).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  Future<void> saveFrtBatch(String tipe, List<Map<String, dynamic>> rows) async {
+    final col = tipe == 'WARRANTY' ? 'frt_warranty' : 'frt_service';
+    var batch = _fs.db.batch();
+    var n = 0;
+    for (final r in rows) {
+      final id = (r['faultCode'] ?? '').toString().isNotEmpty ? r['faultCode'] : (r['job'] ?? '').toString();
+      if (id.toString().isEmpty) continue;
+      batch.set(_fs.col(col).doc(id.toString()), {...r, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      n++;
+      if (n >= 400) { await batch.commit(); batch = _fs.db.batch(); n = 0; }
+    }
+    if (n > 0) await batch.commit();
   }
 
   Stream<List<Map<String, dynamic>>> watchWO({String? status}) {
