@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'stock_repository.dart';
+import 'forecast_page.dart';
 
 // Alert stok <= min + usulan PO (max = min*3)
 class AlertPOPage extends StatefulWidget {
@@ -15,7 +16,8 @@ class _AlertPOPageState extends State<AlertPOPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('QJ Motor - Alert & PO'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('QJ Motor - Alert & PO'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
+        actions: [IconButton(tooltip: 'Forecasting', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForecastPage())) , icon: const Icon(Icons.trending_up))]),
       body: StreamBuilder(
         stream: repo.watchLowStock(),
         builder: (c, snap) {

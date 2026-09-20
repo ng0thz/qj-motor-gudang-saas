@@ -8,6 +8,7 @@ import 'label_print_page.dart';
 import 'history_sheet.dart';
 import 'opname_page.dart';
 import 'alert_po_page.dart';
+import 'forecast_page.dart';
 import 'batch_page.dart';
 import 'workorder_page.dart';
 import 'label_batch_page.dart';
@@ -157,6 +158,7 @@ class _StockPageState extends State<StockPage> {
         actions: [
           IconButton(tooltip: 'Dashboard', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardPage())), icon: const Icon(Icons.dashboard)),
           IconButton(tooltip: 'Alert & PO', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AlertPOPage())), icon: const Icon(Icons.warning)),
+          IconButton(tooltip: 'Forecast', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForecastPage())), icon: const Icon(Icons.trending_up)),
           IconButton(tooltip: 'Opname', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OpnamePage())), icon: const Icon(Icons.fact_check)),
           IconButton(tooltip: 'WO', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkOrderPage())), icon: const Icon(Icons.build)),
           IconButton(tooltip: 'Label batch', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LabelBatchPage())), icon: const Icon(Icons.print)),
