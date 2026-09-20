@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'core/qj_theme.dart';
 import 'features/auth/auth_gate.dart';
+import 'features/home/splash_page.dart';
 
 // Catatan: JANGAN import firebase_options.dart di sini — file itu di-gitignore
 // agar key asli tidak bocor. Setelah `flutterfire configure` (lihat
@@ -25,9 +27,9 @@ class GudangSaaSApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gudang SaaS - QJ Motor 4385 SKU',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: const Color(0xFF1B2A4A)),
-      home: AuthGate(firebaseOk: firebaseOk),
+      title: 'QJ Motor - Gudang & Bengkel',
+      theme: qjTheme(),
+      home: SplashPage(firebaseOk: firebaseOk),
       debugShowCheckedModeBanner: false,
     );
   }

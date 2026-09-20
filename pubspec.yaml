@@ -40,3 +40,5 @@ flutter:
   assets:
     - assets/data_import.json
     - assets/data_import_classified.json
+    - assets/qjmotor_logo_transparent.png
+    - assets/qjmotor_icon.png

@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/auth_service.dart';
+import '../home/home_page.dart';
 import '../stock/offline_stock_page.dart';
-import '../stock/stock_page.dart';
 import 'login_page.dart';
 
 // Gerbang: belum login -> LoginPage. Sudah login -> muat session -> StockPage.
@@ -27,7 +27,7 @@ class AuthGate extends StatelessWidget {
             if (s2.connectionState == ConnectionState.waiting) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            return const StockPage();
+            return const HomePage();
           },
         );
       },
