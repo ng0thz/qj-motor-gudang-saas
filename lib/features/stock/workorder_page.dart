@@ -19,6 +19,10 @@ class _WorkOrderPageState extends State<WorkOrderPage> {
   final keluhanCtrl = TextEditingController();
   String model = 'FORT 250';
   String tipe = 'SERVICE'; // SERVICE|WARRANTY
+  String kategori = 'Reguler'; // Reguler|JobReturn|Kunjung|KSG1..KSG8|Warranty|PDI
+  final kuponCtrl = TextEditingController();
+  bool kuponStempel = false;
+  static const kategoris = ['Reguler', 'JobReturn', 'Kunjung', 'KSG1', 'KSG2', 'KSG3', 'KSG4', 'KSG5', 'KSG6', 'KSG7', 'KSG8', 'Warranty', 'PDI'];
   String jobQuery = '';
   String partQuery = '';
   List<FrtEntry> frtCache = [];
@@ -102,7 +106,9 @@ class _WorkOrderPageState extends State<WorkOrderPage> {
     }
     await repo.createWO(
       nopol: nopolCtrl.text.trim(), motor: model, keluhan: keluhanCtrl.text.trim(),
-      model: model, tipe: tipe, jobs: jobs, parts: parts,
+      model: model, tipe: tipe, kategori: kategori,
+      kuponNo: kuponCtrl.text.trim(), kuponStempel: kuponStempel,
+      jobs: jobs, parts: parts,
       labourTotal: labourTotal, partsTotal: partsTotal,
     );
     if (mounted) {
@@ -131,6 +137,16 @@ class _WorkOrderPageState extends State<WorkOrderPage> {
             onChanged: (v) { setState(() { tipe = v!; jobs.clear(); }); _loadFrt(); })),
           const SizedBox(width: 8),
           Expanded(child: TextField(controller: keluhanCtrl, decoration: const InputDecoration(labelText: 'Keluhan', border: OutlineInputBorder()))),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: DropdownButtonFormField<String>(value: kategori, decoration: const InputDecoration(labelText: 'Kategori', border: OutlineInputBorder()),
+            items: kategoris.map((k) => DropdownMenuItem(value: k, child: Text(k, style: const TextStyle(fontSize: 12)))).toList(),
+            onChanged: (v) => setState(() => kategori = v!))),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: kuponCtrl, decoration: const InputDecoration(labelText: 'No. Kupon (KSG)', border: OutlineInputBorder()))),
+          Checkbox(value: kuponStempel, onChanged: (v) => setState(() => kuponStempel = v ?? false)),
+          const Text('Stempel', style: TextStyle(fontSize: 11)),
         ]),
         const SizedBox(height: 12),
         Text('Pekerjaan ($tipe) — jasa otomatis per $model', style: const TextStyle(fontWeight: FontWeight.bold)),

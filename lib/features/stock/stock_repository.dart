@@ -223,11 +223,14 @@ class StockRepository {
   Future<String> createWO({
     required String nopol, required String motor, required String keluhan, String? mekanik,
     String model = '', String tipe = 'SERVICE', // SERVICE|WARRANTY
+    String kategori = 'Reguler', // Reguler|JobReturn|Kunjung|KSG1..KSG8|Warranty|PDI
+    String kuponNo = '', bool kuponStempel = false,
     List<Map<String, dynamic>> jobs = const [], List<Map<String, dynamic>> parts = const [],
     int labourTotal = 0, int partsTotal = 0,
   }) async {
     final ref = await _fs.col('work_orders').add({
       'nopol': nopol, 'motor': motor, 'model': model, 'motorClass': model.isEmpty ? '' : kelasOf(model), 'tipe': tipe,
+      'kategori': kategori, 'kuponNo': kuponNo, 'kuponStempel': kuponStempel,
       'keluhan': keluhan, 'mekanik': mekanik ?? '',
       'jobs': jobs, 'parts': parts,
       'labourTotal': labourTotal, 'partsTotal': partsTotal,

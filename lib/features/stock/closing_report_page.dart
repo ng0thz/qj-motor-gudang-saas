@@ -4,9 +4,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'stock_repository.dart';
 
-// Laporan aktivitas bengkel harian -> dikirim WA saat closing.
-// Dibaca: Operation Manager, Direktur/Komisaris, Owner.
-// Sumber: work_orders + stock_movements hari ini + stok kritis + PO.
+// DAILY OPERATION REPORT QJMOTOR ADIDAYA BALI – BENGKEL SERVICE
+// Format A-F persis draft frontdesk. Angka auto dari WO + mutasi,
+// D/E/F + Hotline manual, RINGKASAN auto (bisa edit).
 class ClosingReportPage extends StatefulWidget {
   const ClosingReportPage({super.key});
   @override
@@ -16,8 +16,12 @@ class ClosingReportPage extends StatefulWidget {
 class _ClosingReportPageState extends State<ClosingReportPage> {
   final repo = StockRepository();
   bool loading = true;
-  String text = '';
-  Map<String, dynamic> summary = {};
+  Map<String, dynamic> d = {};
+  final kerjaCtrl = TextEditingController();
+  final kendalaCtrl = TextEditingController();
+  final tindakCtrl = TextEditingController();
+  final hotlineCtrl = TextEditingController();
+  final ringkasanCtrl = TextEditingController();
   final Set<String> pilihPenerima = {};
 
   @override
@@ -26,152 +30,189 @@ class _ClosingReportPageState extends State<ClosingReportPage> {
     _build();
   }
 
-  DateTime _startOfToday() {
-    final n = DateTime.now();
-    return DateTime(n.year, n.month, n.day);
-  }
+  DateTime _start(DateTime n) => DateTime(n.year, n.month, n.day);
+
+  int _kat(List<Map<String, dynamic>> wos, String k) =>
+      wos.where((w) => '${w['kategori'] ?? 'Reguler'}' == k).length;
 
   Future<void> _build() async {
     setState(() => loading = true);
-    final start = _startOfToday();
-    final tgl = DateFormat('EEEE, d MMM yyyy', 'id_ID').format(DateTime.now());
+    final now = DateTime.now();
+    final start = _start(now);
+    final monthStart = DateTime(now.year, now.month, 1);
     final movs = await repo.fetchMovementsSince(start);
     final wos = await repo.fetchWOSince(start);
+    final wosMonth = await repo.fetchWOSince(monthStart);
+    final movsMonth = await repo.fetchMovementsSince(monthStart);
     final pos = await repo.fetchPOsSince(start);
-
-    final woMasuk = wos.length;
-    final woSelesai = wos.where((w) => '${w['status']}'.toUpperCase() == 'SELESAI').length;
-    final woProses = wos.where((w) => ['OPEN', 'PROSES'].contains('${w['status']}'.toUpperCase())).length;
-
-    int outQty = 0, inQty = 0;
-    final Map<String, int> outPerPart = {};
-    for (final m in movs) {
-      final q = (m['qty'] ?? 0) as int;
-      if (m['tipe'] == 'OUT') { outQty += q; outPerPart[m['kode_part']] = (outPerPart[m['kode_part']] ?? 0) + q; }
-      if (m['tipe'] == 'IN') inQty += q;
-    }
-    final topOut = outPerPart.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    int omzet = 0;
     final all = await repo.fetchAll3000();
+    final jenisOf = {for (final p in all) p.kode: p.jenisPart};
     final price = {for (final p in all) p.kode: p.harga.jual};
-    for (final e in topOut) { omzet += (price[e.key] ?? 0) * e.value; }
+
+    // A. Unit
+    final ksg = {for (var i = 1; i <= 8; i++) 'KSG$i': _kat(wos, 'KSG$i')};
+    final reguler = _kat(wos, 'Reguler');
+    final jobReturn = _kat(wos, 'JobReturn');
+    final kunjung = _kat(wos, 'Kunjung');
+    final warranty = _kat(wos, 'Warranty');
+    final pdi = _kat(wos, 'PDI');
+    final total = wos.length;
+    final pdiLabour = wos.where((w) => '${w['kategori']}' == 'PDI').fold<int>(0, (t, w) => t + ((w['labourTotal'] ?? 0) as int));
+    // Kupon KSG
+    final kuponOk = wos.where((w) => '${w['kategori']}'.startsWith('KSG') && (w['kuponStempel'] == true)).length;
+    final kuponTotal = ksg.values.fold<int>(0, (t, v) => t + v);
+
+    // B. Sparepart dari OUT hari ini
+    int oli = 0, filter = 0;
+    final Map<String, int> indentPerPart = {};
+    for (final m in movs) {
+      if (m['tipe'] != 'OUT') continue;
+      final kode = '${m['kode_part']}';
+      final q = (m['qty'] ?? 0) as int;
+      final j = (jenisOf[kode] ?? '').toUpperCase();
+      final nama = kode.toUpperCase();
+      if (j == 'OIL_FLUID' || nama.startsWith('LIDEM') || nama.contains('OIL')) oli += q;
+      if (nama.contains('FILTER') || kode.startsWith('2601') || kode.startsWith('1601')) filter += q;
+    }
+    int indentItems = 0;
+    for (final p in pos) {
+      final items = (p['items'] ?? []) as List;
+      indentItems += items.fold<int>(0, (t, e) => t + ((e['qty'] ?? 0) as int));
+    }
+
+    // C. Labour
+    final labourToday = wos.where((w) => '${w['status']}'.toUpperCase() == 'SELESAI')
+        .fold<int>(0, (t, w) => t + ((w['labourTotal'] ?? 0) as int));
+    final labourMtd = wosMonth.where((w) => '${w['status']}'.toUpperCase() == 'SELESAI')
+        .fold<int>(0, (t, w) => t + ((w['labourTotal'] ?? 0) as int));
+    int omzetMtd = 0;
+    for (final m in movsMonth) {
+      if (m['tipe'] != 'OUT') continue;
+      omzetMtd += (price['${m['kode_part']}'] ?? 0) * ((m['qty'] ?? 0) as int);
+    }
+
+    // F auto: WO belum selesai + stok kritis
+    final tertunda = wos.where((w) => ['OPEN', 'PROSES'].contains('${w['status']}'.toUpperCase())).length;
     final habis = all.where((p) => p.stok == 0).length;
     final menipis = all.where((p) => p.stok > 0 && p.stok <= p.minStok).length;
 
-    final buf = StringBuffer();
-    buf.writeln('*LAPORAN HARIAN BENGKEL QJ MOTOR*');
-    buf.writeln(tgl);
-    buf.writeln('--------------------------');
-    buf.writeln('1. WORK ORDER: $woMasuk masuk, $woSelesai selesai, $woProses proses/antri');
-    buf.writeln('2. PART: OUT $outQty pcs, IN $inQty pcs');
-    if (topOut.isNotEmpty) {
-      buf.writeln('   Top OUT: ${topOut.take(3).map((e) => '${e.key} (${e.value})').join(', ')}');
-    }
-    buf.writeln('3. OMZET PART (estimasi): Rp $omzet');
-    buf.writeln('4. STOK KRITIS: $habis habis, $menipis menipis');
-    buf.writeln('5. PO HARI INI: ${pos.length} dokumen');
-    buf.writeln('--------------------------');
-    buf.writeln('Dibuat otomatis oleh sistem. Detail di aplikasi.');
-
-    summary = {
-      'woMasuk': woMasuk, 'woSelesai': woSelesai, 'woProses': woProses,
-      'outQty': outQty, 'inQty': inQty, 'omzet': omzet,
-      'habis': habis, 'menipis': menipis, 'po': pos.length,
+    d = {
+      'total': total, 'totalMtd': wosMonth.length,
+      'reguler': reguler, 'jobReturn': jobReturn, 'kunjung': kunjung,
+      'warranty': warranty, 'pdi': pdi, 'pdiLabour': pdiLabour,
+      'ksg': ksg, 'kuponOk': kuponOk, 'kuponTotal': kuponTotal,
+      'oli': oli, 'filter': filter, 'indent': indentItems,
+      'labourToday': labourToday, 'labourMtd': labourMtd, 'omzetMtd': omzetMtd,
+      'tertunda': tertunda, 'habis': habis, 'menipis': menipis,
+      'po': pos.length,
     };
-    setState(() { text = buf.toString(); loading = false; });
+    ringkasanCtrl.text =
+        '$total unit hari ini ($reguler reguler, ${ksg.values.fold(0, (a, b) => a + b)} KSG, ${_kat(wos, 'Warranty')} warranty, $pdi PDI). '
+        'Tertunda $tertunda. Stok kritis $habis habis/$menipis menipis.';
+    tindakCtrl.text = tertunda > 0 ? 'Selesaikan $tertunda WO tertunda.' : '';
+    if (habis + menipis > 0) tindakCtrl.text += (tindakCtrl.text.isEmpty ? '' : ' ') + 'Cek $habis habis/$menipis menipis.';
+    setState(() => loading = false);
+  }
+
+  String _text() {
+    final tgl = DateFormat('dd/MM/yyyy').format(DateTime.now());
+    final ksg = (d['ksg'] ?? {}) as Map;
+    final b = StringBuffer();
+    b.writeln('📋 *DAILY OPERATION REPORT QJMOTOR ADIDAYA BALI – BENGKEL SERVICE*');
+    b.writeln('📅 AKTIVITAS HARI INI Tanggal: [$tgl]');
+    b.writeln('━━━━━━━━━━━━━━━━');
+    b.writeln('*A. UNIT SERVICE*');
+    b.writeln('Unit Service Total : ${d['total']}');
+    b.writeln('Unit Service Total s/d hari ini : ${d['totalMtd']}');
+    b.writeln('Service Reguler : ${d['reguler']}');
+    b.writeln('Service Job Return : ${d['jobReturn']}');
+    b.writeln('Service Kunjung : ${d['kunjung']}');
+    b.writeln('Service Warranty/Claim : ${d['warranty']}');
+    for (var i = 1; i <= 8; i += 4) {
+      b.writeln('Unit KSG $i : ${ksg['KSG$i'] ?? 0}                     Unit KSG ${i + 4} : ${ksg['KSG${i + 4}'] ?? 0}');
+    }
+    b.writeln('Kupon terkumpul+stempel: ${d['kuponOk']}/${d['kuponTotal']}${(d['kuponTotal'] ?? 0) > (d['kuponOk'] ?? 0) ? ' ⚠️ kurang ${((d['kuponTotal'] ?? 0) as int) - ((d['kuponOk'] ?? 0) as int)}' : ' ✅'}');
+    b.writeln('Unit PDI : ${d['pdi']}  Biaya service : Rp. ${d['pdiLabour']}');
+    b.writeln('');
+    b.writeln('B. SPAREPART');
+    b.writeln('Oli Mesin : ${d['oli']}');
+    b.writeln('Filter Oli : ${d['filter']}');
+    b.writeln('Sparepart Indent : ${d['indent']} item');
+    b.writeln('Hotline Order : ${hotlineCtrl.text.isEmpty ? '-' : hotlineCtrl.text}');
+    b.writeln('');
+    b.writeln('C. Labour / jasa service : Rp. ${d['labourToday']}');
+    b.writeln('Total s/d hari ini :');
+    b.writeln('Rp. ${d['labourMtd']} (omzet part MTD Rp. ${d['omzetMtd']})');
+    b.writeln('');
+    if (kerjaCtrl.text.isNotEmpty) { b.writeln('D. PEKERJAAN KHUSUS'); b.writeln(kerjaCtrl.text); b.writeln(''); }
+    if (kendalaCtrl.text.isNotEmpty) { b.writeln('E. KENDALA'); b.writeln('• ${kendalaCtrl.text}'); b.writeln(''); }
+    if (tindakCtrl.text.isNotEmpty) { b.writeln('F. TINDAK LANJUT BESOK'); b.writeln('• ${tindakCtrl.text}'); b.writeln(''); }
+    b.writeln('━━━━━━━━━━━━━━━━━━');
+    b.writeln('RINGKASAN ✅');
+    b.writeln(ringkasanCtrl.text);
+    b.writeln('');
+    b.writeln('Terima kasih.');
+    return b.toString();
   }
 
   Future<void> _kirim() async {
     final recips = await repo.watchRecipients().first;
-    final targets = recips.where((r) => pilihPenerima.contains(r['id']) && (r['aktif'] ?? true) == true).toList();
+    final targets = recips.where((r) => pilihPenerima.contains(r['id'])).toList();
     if (targets.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih penerima dulu')));
       return;
     }
-    // Arsip dulu
     final key = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    await repo.saveDailyReport(dateKey: key, text: text, summary: {...summary, 'penerima': targets.map((t) => t['nama']).toList()});
-    // Kirim per penerima via wa.me
+    await repo.saveDailyReport(dateKey: key, text: _text(), summary: {...d,
+      'kerja': kerjaCtrl.text, 'kendala': kendalaCtrl.text, 'tindak': tindakCtrl.text,
+      'hotline': hotlineCtrl.text, 'ringkasan': ringkasanCtrl.text,
+      'penerima': targets.map((t) => t['nama']).toList()});
     for (final t in targets) {
       final wa = '${t['wa']}'.replaceAll(RegExp(r'[^0-9]'), '');
       if (wa.isEmpty) continue;
-      final uri = Uri.parse('https://wa.me/$wa?text=${Uri.encodeComponent(text)}');
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await launchUrl(Uri.parse('https://wa.me/$wa?text=${Uri.encodeComponent(_text())}'), mode: LaunchMode.externalApplication);
     }
-    // Fallback share sheet
-    await Share.share(text, subject: 'Laporan Harian QJ Motor');
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Laporan diarsip + dibuka di WA')));
-  }
-
-  Future<void> _kelolaPenerima() async {
-    final nama = TextEditingController();
-    final wa = TextEditingController();
-    String role = 'Operation Manager';
-    await showDialog(context: context, builder: (_) => AlertDialog(
-      title: const Text('Tambah penerima'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: nama, decoration: const InputDecoration(labelText: 'Nama')),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(value: role, items: const [
-          DropdownMenuItem(value: 'Operation Manager', child: Text('Operation Manager')),
-          DropdownMenuItem(value: 'Direktur/Komisaris', child: Text('Direktur/Komisaris')),
-          DropdownMenuItem(value: 'Owner', child: Text('Owner')),
-          DropdownMenuItem(value: 'Frontdesk', child: Text('Frontdesk')),
-        ], onChanged: (v) => role = v!, decoration: const InputDecoration(labelText: 'Role')),
-        const SizedBox(height: 8),
-        TextField(controller: wa, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'No WA (628...)')),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-        ElevatedButton(onPressed: () async {
-          await repo.upsertRecipient(nama: nama.text.trim(), role: role, wa: wa.text.trim());
-          if (mounted) Navigator.pop(context);
-        }, child: const Text('Simpan')),
-      ],
-    ));
+    await Share.share(_text(), subject: 'Daily Operation Report QJMOTOR');
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Laporan A-F diarsip + dibuka di WA')));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('QJ Motor - Closing Harian'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _build),
-          IconButton(icon: const Icon(Icons.person_add), onPressed: _kelolaPenerima),
-        ]),
+      appBar: AppBar(title: const Text('QJ Motor - Laporan Harian A-F'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _build),
+          IconButton(icon: const Icon(Icons.person_add), onPressed: () {})]),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(children: [
-              Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(width: double.infinity, padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-                  child: Text(text, style: const TextStyle(fontSize: 13))),
-                const SizedBox(height: 12),
-                const Text('Penerima (dicentang yang dikirim)', style: TextStyle(fontWeight: FontWeight.bold)),
-                StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: repo.watchRecipients(),
-                  builder: (c, s) {
-                    if (!s.hasData) return const LinearProgressIndicator();
-                    if (s.data!.isEmpty) return const Text('Belum ada penerima. Tambah via ikon orang di atas.', style: TextStyle(fontSize: 12));
-                    // default centang semua saat pertama load
-                    if (pilihPenerima.isEmpty) {
-                      for (final r in s.data!) { pilihPenerima.add(r['id']); }
-                    }
-                    return Column(children: s.data!.map((r) => CheckboxListTile(
-                      value: pilihPenerima.contains(r['id']),
-                      onChanged: (v) => setState(() => v! ? pilihPenerima.add(r['id']) : pilihPenerima.remove(r['id'])),
-                      title: Text('${r['nama']} • ${r['role']}', style: const TextStyle(fontSize: 13)),
-                      subtitle: Text('${r['wa']}', style: const TextStyle(fontSize: 11)),
-                      secondary: IconButton(icon: const Icon(Icons.delete, size: 18), onPressed: () => repo.deleteRecipient(r['id'])),
-                    )).toList());
-                  },
-                ),
-              ]))),
-              Padding(padding: const EdgeInsets.all(12), child: SizedBox(width: double.infinity, child: ElevatedButton.icon(
-                icon: const Icon(Icons.send), label: const Text('Arsip + Kirim WA Closing'),
+          : ListView(padding: const EdgeInsets.all(12), children: [
+              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                child: Text(_text(), style: const TextStyle(fontSize: 12))),
+              const SizedBox(height: 12),
+              const Text('Bagian manual (D/E/F + Hotline + Ringkasan bisa edit)', style: TextStyle(fontWeight: FontWeight.bold)),
+              TextField(controller: kerjaCtrl, decoration: const InputDecoration(labelText: 'D. Pekerjaan khusus'), maxLines: 2, onChanged: (_) => setState(() {})),
+              TextField(controller: kendalaCtrl, decoration: const InputDecoration(labelText: 'E. Kendala'), maxLines: 2, onChanged: (_) => setState(() {})),
+              TextField(controller: tindakCtrl, decoration: const InputDecoration(labelText: 'F. Tindak lanjut besok (auto, bisa edit)'), maxLines: 2, onChanged: (_) => setState(() {})),
+              TextField(controller: hotlineCtrl, decoration: const InputDecoration(labelText: 'Hotline Order (manual)'), onChanged: (_) => setState(() {})),
+              TextField(controller: ringkasanCtrl, decoration: const InputDecoration(labelText: 'RINGKASAN (auto, bisa edit)'), maxLines: 2, onChanged: (_) => setState(() {})),
+              const SizedBox(height: 12),
+              const Text('Penerima', style: TextStyle(fontWeight: FontWeight.bold)),
+              StreamBuilder<List<Map<String, dynamic>>>(
+                stream: repo.watchRecipients(),
+                builder: (c, s) {
+                  if (!s.hasData) return const LinearProgressIndicator();
+                  if (pilihPenerima.isEmpty) { for (final r in s.data!) { pilihPenerima.add(r['id']); } }
+                  return Column(children: s.data!.map((r) => CheckboxListTile(
+                    value: pilihPenerima.contains(r['id']),
+                    onChanged: (v) => setState(() => v! ? pilihPenerima.add(r['id']) : pilihPenerima.remove(r['id'])),
+                    title: Text('${r['nama']} • ${r['role']}', style: const TextStyle(fontSize: 13)),
+                    subtitle: Text('${r['wa']}', style: const TextStyle(fontSize: 11)),
+                  )).toList());
+                },
+              ),
+              SizedBox(width: double.infinity, child: ElevatedButton.icon(
+                icon: const Icon(Icons.send), label: const Text('Arsip + Kirim WA'),
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white),
-                onPressed: _kirim,
-              ))),
+                onPressed: _kirim)),
             ]),
     );
   }
