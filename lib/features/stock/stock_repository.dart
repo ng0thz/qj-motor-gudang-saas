@@ -31,14 +31,59 @@ class StockRepository {
     return snap.docs.map((d)=> Sparepart.fromDoc(d)).toList();
   }
 
+  // Scan cocok ke: kode, barcode primer, atau barcode supplier (barcodes[])
   Future<Sparepart?> getByBarcode(String barcode) async {
-    final q = await _fs.col('spareparts').where('barcode', isEqualTo: barcode).limit(1).get();
-    if (q.docs.isEmpty) {
-      final q2 = await _fs.col('spareparts').where('kode', isEqualTo: barcode).limit(1).get();
-      if (q2.docs.isEmpty) return null;
-      return Sparepart.fromDoc(q2.docs.first);
-    }
-    return Sparepart.fromDoc(q.docs.first);
+    final code = barcode.trim();
+    var q = await _fs.col('spareparts').where('kode', isEqualTo: code).limit(1).get();
+    if (q.docs.isNotEmpty) return Sparepart.fromDoc(q.docs.first);
+    q = await _fs.col('spareparts').where('barcode', isEqualTo: code).limit(1).get();
+    if (q.docs.isNotEmpty) return Sparepart.fromDoc(q.docs.first);
+    q = await _fs.col('spareparts').where('barcodes', arrayContains: code).limit(1).get();
+    if (q.docs.isNotEmpty) return Sparepart.fromDoc(q.docs.first);
+    return null;
+  }
+
+  // Daftarkan barcode supplier/kemasan ke SKU (cukup scan sekali)
+  Future<void> addBarcode(String kode, String barcode) async {
+    final code = barcode.trim();
+    if (code.isEmpty || code == kode) return;
+    await _fs.doc('spareparts', kode).set({
+      'barcodes': FieldValue.arrayUnion([code]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> removeBarcode(String kode, String barcode) async {
+    await _fs.doc('spareparts', kode).set({
+      'barcodes': FieldValue.arrayRemove([barcode]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // Ubah harga manual per SKU + catat riwayat
+  Future<void> updateHarga(String kode, int retailBaru, {String sumber = 'manual'}) async {
+    final doc = await _fs.doc('spareparts', kode).get();
+    final lama = Sparepart.fromDoc(doc as DocumentSnapshot<Map<String, dynamic>>);
+    if (lama.harga.retail == retailBaru) return;
+    final batch = _fs.db.batch();
+    batch.set(_fs.doc('spareparts', kode), {
+      'harga': {'modal': (retailBaru * 0.85).round(), 'retail': retailBaru, 'pajakPersen': 11,
+        'pajakRp': retailBaru * 11 ~/ 100, 'jual': retailBaru + retailBaru * 11 ~/ 100},
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    batch.set(_fs.doc('spareparts', kode).collection('price_history').doc(), {
+      'retailLama': lama.harga.retail, 'jualLama': lama.harga.jual,
+      'retailBaru': retailBaru, 'jualBaru': retailBaru + retailBaru * 11 ~/ 100,
+      'sumber': sumber, 'oleh': _fs.auth.currentUser?.uid ?? 'demo',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchPriceHistory(String kode, {int limit = 10}) async {
+    final s = await _fs.doc('spareparts', kode).collection('price_history')
+        .orderBy('timestamp', descending: true).limit(limit).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
   Future<void> upsert(Sparepart p) async {

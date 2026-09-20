@@ -6,6 +6,7 @@ import 'rack_master.dart';
 import 'rack_picker.dart';
 import 'label_print_page.dart';
 import 'history_sheet.dart';
+import 'barcode_price_sheet.dart';
 import 'opname_page.dart';
 import 'alert_po_page.dart';
 import 'forecast_page.dart';
@@ -112,6 +113,9 @@ class _StockPageState extends State<StockPage> {
           ]),
           const SizedBox(height: 8),
           Row(children: [
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.qr_code, size: 16), label: const Text('Barcode+Harga', style: TextStyle(fontSize: 11)),
+              onPressed: () => openBarcodeHarga(context, p.kode, p.harga.retail))),
+            const SizedBox(width: 8),
             Expanded(child: OutlinedButton(onPressed: () => openHistory(context, p.kode), child: const Text('History'))),
             const SizedBox(width: 8),
             Expanded(child: OutlinedButton(onPressed: () {

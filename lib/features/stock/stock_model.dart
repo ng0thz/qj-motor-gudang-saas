@@ -44,7 +44,8 @@ class Sparepart {
   final String alamat; // A-02-04-M05
   final String rak;
   final String bin;
-  final String barcode; // sama dengan kode
+  final String barcode; // primer = kode (untuk QR label kita)
+  final List<String> barcodes; // tambahan: barcode supplier/kemasan
   final Harga harga;
   final List<Substitusi> substitusi;
   final List<String> kompatibel;
@@ -58,12 +59,12 @@ class Sparepart {
     required this.stok, required this.minStok, required this.alamat,
     required this.rak, required this.bin, required this.barcode,
     required this.harga, this.substitusi=const[], this.kompatibel=const[], this.kategori='MEDIUM',
-    this.jenisPart='OTHER', this.prioritas=1, this.status='DRAFT'
+    this.jenisPart='OTHER', this.prioritas=1, this.status='DRAFT', this.barcodes=const[],
   });
 
   Map<String,dynamic> toMap() => {
     'kode':kode,'nama':nama,'motorType':motorType,'stok':stok,'minStok':minStok,
-    'alamat':alamat,'rak':rak,'bin':bin,'barcode':barcode,
+    'alamat':alamat,'rak':rak,'bin':bin,'barcode':barcode,'barcodes':barcodes,
     'harga':harga.toMap(),
     'substitusi': substitusi.map((e)=>e.toMap()).toList(),
     'kompatibel': kompatibel,
@@ -81,6 +82,7 @@ class Sparepart {
       stok: m['stok']??0, minStok: m['minStok']??5,
       alamat: m['alamat']??'', rak: m['rak']??'', bin: m['bin']??'',
       barcode: m['barcode']??m['kode'],
+      barcodes: List<String>.from(m['barcodes']??[]),
       harga: Harga.fromMap(m['harga']??{}),
       substitusi: ((m['substitusi'] as List?)??[]).map((e)=>Substitusi.fromMap(e)).toList(),
       kompatibel: List<String>.from(m['kompatibel']??[]),
