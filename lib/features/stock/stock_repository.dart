@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/firebase_service.dart';
 import 'stock_model.dart';
+import 'motor_class.dart' show kelasOf;
 
 class StockRepository {
   final _fs = FirebaseService.instance;
@@ -226,7 +227,7 @@ class StockRepository {
     int labourTotal = 0, int partsTotal = 0,
   }) async {
     final ref = await _fs.col('work_orders').add({
-      'nopol': nopol, 'motor': motor, 'model': model, 'tipe': tipe,
+      'nopol': nopol, 'motor': motor, 'model': model, 'motorClass': model.isEmpty ? '' : kelasOf(model), 'tipe': tipe,
       'keluhan': keluhan, 'mekanik': mekanik ?? '',
       'jobs': jobs, 'parts': parts,
       'labourTotal': labourTotal, 'partsTotal': partsTotal,

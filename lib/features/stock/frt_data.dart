@@ -14,8 +14,18 @@ class FrtEntry {
 
   static const models = ['FORT 250', 'SRV 250 AMT', 'SRV 600 V', 'SRK 800 RR'];
 
-  bool appliesTo(String model) => (price[model] ?? 0) > 0;
-  int priceFor(String model) => price[model] ?? 0;
+  // Model di luar tabel (mis. VIENTO 180) difallback ke representatif kelasnya.
+  // Import di bawah agar tidak circular: dipanggil via helper di motor_class.
+  bool appliesTo(String model) => priceFor(model) > 0;
+  int priceFor(String model) {
+    if ((price[model] ?? 0) > 0) return price[model]!;
+    // Fallback kelas: KECIL->FORT 250, HIGH->SRV 600 V, MEDIUM->SRV 250 AMT/FORT 250
+    final m = model.toUpperCase();
+    if (RegExp(r'180|150|200|VIENTO|CITO').hasMatch(m)) return price['FORT 250'] ?? 0;
+    if (RegExp(r'600|800|700').hasMatch(m)) return price['SRV 600 V'] ?? 0;
+    if (m.contains('SRV')) return price['SRV 250 AMT'] ?? 0;
+    return price['FORT 250'] ?? 0;
+  }
 
   Map<String, dynamic> toMap() => {
     'faultCode': faultCode, 'category': category, 'job': job,

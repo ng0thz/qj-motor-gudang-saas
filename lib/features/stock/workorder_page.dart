@@ -3,6 +3,7 @@ import 'stock_repository.dart';
 import 'frt_data.dart';
 import 'job_part_map.dart';
 import 'frt_import_page.dart';
+import 'motor_class.dart';
 
 // WO: pilih Model + Tipe (Service/Warranty) -> pilih Job -> jasa otomatis.
 // Tambah Part A,B,C -> saran job muncul. Total = part + labour.
@@ -25,7 +26,17 @@ class _WorkOrderPageState extends State<WorkOrderPage> {
   List<Map<String, dynamic>> parts = []; // {kode, nama, jual, qty}
   List<String> saranJob = [];
 
-  final models = ['FORT 250', 'SRV 250 AMT', 'SRV 600 V', 'SRK 800 RR', 'FORT 250 ADV', 'VIENTO 180', 'CITO 150', 'TOURINO 250 DX'];
+  final models = motorMaster.map((e) => e.model).toList();
+  List<DropdownMenuItem<String>> get modelItems {
+    final out = <DropdownMenuItem<String>>[];
+    for (final k in ['KECIL', 'MEDIUM', 'HIGH']) {
+      out.add(DropdownMenuItem(value: '__$k', enabled: false, child: Text('-- $k --', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey))));
+      for (final m in modelsOfKelas(k)) {
+        out.add(DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12))));
+      }
+    }
+    return out;
+  }
 
   Future<void> _loadFrt() async {
     final rows = await repo.fetchFrt(tipe);
@@ -109,9 +120,9 @@ class _WorkOrderPageState extends State<WorkOrderPage> {
         Row(children: [
           Expanded(child: TextField(controller: nopolCtrl, decoration: const InputDecoration(labelText: 'Nopol', border: OutlineInputBorder()))),
           const SizedBox(width: 8),
-          Expanded(child: DropdownButtonFormField<String>(value: model, decoration: const InputDecoration(labelText: 'Model', border: OutlineInputBorder()),
-            items: models.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
-            onChanged: (v) => setState(() => model = v!))),
+          Expanded(child: DropdownButtonFormField<String>(value: model, decoration: InputDecoration(labelText: 'Model (${kelasOf(model)})', border: const OutlineInputBorder()),
+            items: modelItems,
+            onChanged: (v) { if (v == null || v.startsWith('__')) return; setState(() => model = v); })),
         ]),
         const SizedBox(height: 8),
         Row(children: [

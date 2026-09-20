@@ -14,6 +14,7 @@ import 'workorder_page.dart';
 import 'label_batch_page.dart';
 import 'dashboard_page.dart';
 import 'closing_report_page.dart';
+import 'motor_class.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -24,6 +25,7 @@ class StockPage extends StatefulWidget {
 class _StockPageState extends State<StockPage> {
   final repo = StockRepository();
   final ctrlSearch = TextEditingController();
+  String kelasFilter = 'SEMUA'; // SEMUA|KECIL|MEDIUM|HIGH
 
   void _scanBarcode() async {
     final code = await openScan(context, title: 'QJ Motor - Scan');
@@ -176,6 +178,14 @@ class _StockPageState extends State<StockPage> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ), onChanged: (v)=> setState((){}),
         )),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(children: [
+          for (final k in ['SEMUA', 'KECIL', 'MEDIUM', 'HIGH'])
+            Padding(padding: const EdgeInsets.only(right: 6), child: ChoiceChip(
+              label: Text(k, style: const TextStyle(fontSize: 11)),
+              selected: kelasFilter == k,
+              onSelected: (_) => setState(() => kelasFilter = k),
+            )),
+        ])),
         // 3000 SKU: load 50 awal, search filter di memory (3MB masih ringan)
         Expanded(child: StreamBuilder<List<Sparepart>>(
           stream: repo.watchAll(limit: 50),
@@ -191,6 +201,9 @@ class _StockPageState extends State<StockPage> {
                 final q = ctrlSearch.text.toLowerCase();
                 if (q.isNotEmpty) {
                   display = display.where((p)=> p.kode.toLowerCase().contains(q) || p.nama.toLowerCase().contains(q) || p.motorType.toLowerCase().contains(q)).toList();
+                }
+                if (kelasFilter != 'SEMUA') {
+                  display = display.where((p) => motorTypeIsKelas('${p.motorType} ${p.kompatibel.join(' ')}', kelasFilter)).toList();
                 }
                 if (display.isEmpty) return const Center(child: Text('Belum ada data. Import Excel 3000 SKU.'));
                 return Column(children: [
