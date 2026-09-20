@@ -9,8 +9,9 @@ build/
 *.aab
 
 # Firebase
+# serviceAccountKey.json = RAHASIA server, jangan commit.
 serviceAccountKey.json
-lib/firebase_options.dart
+# firebase_options.dart BOLEH di-commit (apiKey Web publik, standar FlutterFire).
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 
