@@ -274,6 +274,28 @@ class StockRepository {
     return q.snapshots().map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
+  // Tracking motor konsumen: riwayat WO per nopol + part per WO
+  Future<List<Map<String, dynamic>>> fetchWOByNopol(String nopol) async {
+    final key = nopol.trim().toUpperCase().replaceAll(' ', '');
+    final s = await _fs.col('work_orders').limit(500).get();
+    final out = s.docs.map((d) => {'id': d.id, ...d.data()}).where((w) {
+      final n = '${w['nopol'] ?? ''}'.toUpperCase().replaceAll(' ', '');
+      return n == key || n.contains(key) || key.contains(n);
+    }).toList();
+    out.sort((a, b) {
+      final ta = (a['createdAt'] as Timestamp?);
+      final tb = (b['createdAt'] as Timestamp?);
+      if (ta == null || tb == null) return 0;
+      return tb.compareTo(ta);
+    });
+    return out.take(50).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMovementsByWO(String woId) async {
+    final s = await _fs.col('stock_movements').where('woId', isEqualTo: woId).limit(100).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
   // Laporan closing harian: agregasi WO + mutasi hari ini + stok kritis + PO
   Future<List<Map<String, dynamic>>> fetchMovementsSince(DateTime start) async {
     final s = await _fs.col('stock_movements')

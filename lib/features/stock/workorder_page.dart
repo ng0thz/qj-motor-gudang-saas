@@ -4,6 +4,7 @@ import 'frt_data.dart';
 import 'job_part_map.dart';
 import 'frt_import_page.dart';
 import 'motor_class.dart';
+import 'workorder_track_page.dart';
 
 // WO: pilih Model + Tipe (Service/Warranty) -> pilih Job -> jasa otomatis.
 // Tambah Part A,B,C -> saran job muncul. Total = part + labour.
@@ -121,7 +122,10 @@ class _WorkOrderPageState extends State<WorkOrderPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('QJ Motor - Work Order + FRT'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
-        actions: [IconButton(tooltip: 'Import FRT', icon: const Icon(Icons.upload_file), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FrtImportPage())))]),
+        actions: [
+          IconButton(tooltip: 'Tracking nopol', icon: const Icon(Icons.history), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkOrderTrackPage()))),
+          IconButton(tooltip: 'Import FRT', icon: const Icon(Icons.upload_file), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FrtImportPage()))),
+        ]),
       body: ListView(padding: const EdgeInsets.all(12), children: [
         Row(children: [
           Expanded(child: TextField(controller: nopolCtrl, decoration: const InputDecoration(labelText: 'Nopol', border: OutlineInputBorder()))),
