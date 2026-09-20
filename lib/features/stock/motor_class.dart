@@ -4,7 +4,7 @@ class MotorInfo {
   final String model;
   final String kelas; // KECIL|MEDIUM|HIGH
   final int cc;
-  MotorInfo(this.model, this.kelas, this.cc);
+  const MotorInfo(this.model, this.kelas, this.cc);
 }
 
 const List<MotorInfo> motorMaster = [
