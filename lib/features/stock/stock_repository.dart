@@ -46,17 +46,192 @@ class StockRepository {
 
   // IN / OUT - tercatat di stock_movements, stok update via Function onCreateStockMovement
   Future<void> addMovement({
-    required String kode, required int qty, required String tipe, // IN|OUT
-    String? nopol, String? mekanikId, String? mekanikNama, String? woId
+    required String kode, required int qty, required String tipe, // IN|OUT|PINDAH|ADJUST|OPNAME
+    String? nopol, String? mekanikId, String? mekanikNama, String? woId,
+    String? lotNo, String? alamatBaru, String? catatan,
   }) async {
-    await _fs.col('stock_movements').add({
+    final batch = _fs.db.batch();
+    final movRef = _fs.col('stock_movements').doc();
+    batch.set(movRef, {
       'tipe': tipe, 'kode_part': kode, 'qty': qty,
       'kendaraan': nopol!=null ? {'nopol':nopol} : null,
       'mekanik': mekanikId!=null ? {'id':mekanikId,'nama':mekanikNama} : null,
       'woId': woId,
+      'lotNo': lotNo,
+      'alamatBaru': alamatBaru,
+      'catatan': catatan,
       'oleh': _fs.auth.currentUser?.uid ?? 'demo',
       'timestamp': FieldValue.serverTimestamp(),
     });
+    // Update stok langsung di client agar offline-first tetap jalan
+    final delta = tipe == 'IN' ? qty : tipe == 'OUT' ? -qty : 0;
+    if (delta != 0) {
+      final spRef = _fs.doc('spareparts', kode);
+      batch.set(spRef, {
+        'stok': FieldValue.increment(delta),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+    await batch.commit();
+    if (tipe == 'OUT' && lotNo != null) {
+      await consumeFIFO(kode, qty);
+    }
+  }
+
+  // 1. Simpan rak + catat mutasi PINDAH
+  Future<void> moveRak({required String kode, required String alamatBaru, String? alasan}) async {
+    final parts = alamatBaru.split('-');
+    final rak = parts.length > 1 ? '${parts[0]}-${parts[1]}' : parts.first;
+    final bin = parts.length > 3 ? parts.sublist(3).join('-') : '';
+    final batch = _fs.db.batch();
+    batch.set(_fs.doc('spareparts', kode), {
+      'alamat': alamatBaru, 'rak': rak, 'bin': bin,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    batch.set(_fs.col('stock_movements').doc(), {
+      'tipe': 'PINDAH', 'kode_part': kode, 'qty': 0,
+      'alamatBaru': alamatBaru, 'catatan': alasan ?? 'Pindah rak',
+      'oleh': _fs.auth.currentUser?.uid ?? 'demo',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  Stream<List<Map<String, dynamic>>> history(String kode, {int limit = 50}) {
+    return _fs.col('stock_movements').where('kode_part', isEqualTo: kode).orderBy('timestamp', descending: true).limit(limit).snapshots().map(
+      (s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  // 3. Alert min/max + usulan PO (maxStok default = minStok*3 bila kosong)
+  Stream<List<Sparepart>> watchLowStock({int limit = 100}) {
+    return _fs.col('spareparts').where('stok', isGreaterThan: -1).limit(500).snapshots().map((s) {
+      final all = s.docs.map((d) => Sparepart.fromDoc(d)).toList();
+      final low = all.where((p) => p.stok <= p.minStok).toList()
+        ..sort((a, b) => (a.stok - a.minStok).compareTo(b.stok - b.minStok));
+      return low.take(limit).toList();
+    });
+  }
+
+  int suggestQty(Sparepart p) {
+    final maxStok = p.minStok * 3;
+    final need = maxStok - p.stok;
+    return need > 0 ? need : 0;
+  }
+
+  Future<void> createPO({required Map<String, int> items, String? supplier, String? catatan}) async {
+    await _fs.col('purchase_orders').add({
+      'items': items.entries.map((e) => {'kode': e.key, 'qty': e.value}).toList(),
+      'supplier': supplier ?? '', 'catatan': catatan ?? '',
+      'status': 'DRAFT', // DRAFT|ORDER|TERIMA
+      'oleh': _fs.auth.currentUser?.uid ?? 'demo',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // 4. Batch/lot FIFO (penting untuk oli/ban)
+  Future<void> addBatch({required String kode, required String lotNo, required int qty, DateTime? expired, DateTime? tglMasuk}) async {
+    await _fs.col('spareparts').doc(kode).collection('batches').doc(lotNo).set({
+      'lotNo': lotNo, 'qty': qty, 'qtyAwal': qty,
+      'tglMasuk': Timestamp.fromDate(tglMasuk ?? DateTime.now()),
+      'expired': expired != null ? Timestamp.fromDate(expired) : null,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBatches(String kode) async {
+    final s = await _fs.col('spareparts').doc(kode).collection('batches').orderBy('tglMasuk').get();
+    return s.docs.map((d) => {'lotNo': d.id, ...d.data()}).toList();
+  }
+
+  // Konsumsi FIFO: lot expired paling dekat / masuk paling dulu
+  Future<void> consumeFIFO(String kode, int qty) async {
+    var sisa = qty;
+    final s = await _fs.col('spareparts').doc(kode).collection('batches').orderBy('tglMasuk').get();
+    // Prioritaskan yang ada expired paling dekat dulu
+    final docs = s.docs.toList()
+      ..sort((a, b) {
+        final ea = (a.data()['expired'] as Timestamp?);
+        final eb = (b.data()['expired'] as Timestamp?);
+        if (ea == null && eb == null) return 0;
+        if (ea == null) return 1;
+        if (eb == null) return -1;
+        return ea.compareTo(eb);
+      });
+    final batch = _fs.db.batch();
+    for (final d in docs) {
+      if (sisa <= 0) break;
+      final q = (d.data()['qty'] ?? 0) as int;
+      if (q <= 0) continue;
+      final ambil = q >= sisa ? sisa : q;
+      batch.update(d.reference, {'qty': FieldValue.increment(-ambil)});
+      sisa -= ambil;
+    }
+    if (sisa != qty) await batch.commit();
+  }
+
+  // 2. Opname + variance + approval
+  Future<String> startOpname({required List<String> scopeZona, required String catatan}) async {
+    final ref = await _fs.col('stock_opnames').add({
+      'scopeZona': scopeZona, 'catatan': catatan,
+      'status': 'COUNTING', // COUNTING|REVIEW|APPROVED|REJECTED
+      'createdAt': FieldValue.serverTimestamp(),
+      'oleh': _fs.auth.currentUser?.uid ?? 'demo',
+    });
+    return ref.id;
+  }
+
+  Future<void> saveCount({required String opnameId, required String kode, required int stokSistem, required int stokFisik}) async {
+    final selisih = stokFisik - stokSistem;
+    await _fs.col('stock_opnames').doc(opnameId).collection('items').doc(kode).set({
+      'kode': kode, 'stokSistem': stokSistem, 'stokFisik': stokFisik, 'selisih': selisih,
+      'status': selisih == 0 ? 'COCOK' : (selisih > 0 ? 'LEBIH' : 'KURANG'),
+      'countedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> approveOpname({required String opnameId, required bool approve}) async {
+    final items = await _fs.col('stock_opnames').doc(opnameId).collection('items').get();
+    final batch = _fs.db.batch();
+    batch.update(_fs.col('stock_opnames').doc(opnameId), {
+      'status': approve ? 'APPROVED' : 'REJECTED',
+      'approvedAt': FieldValue.serverTimestamp(),
+    });
+    if (approve) {
+      for (final d in items.docs) {
+        final m = d.data();
+        final selisih = (m['selisih'] ?? 0) as int;
+        if (selisih != 0) {
+          final mov = _fs.col('stock_movements').doc();
+          batch.set(mov, {
+            'tipe': 'OPNAME', 'kode_part': m['kode'], 'qty': selisih.abs(),
+            'catatan': 'Adjust opname $opnameId (${selisih > 0 ? '+' : ''}$selisih)',
+            'oleh': _fs.auth.currentUser?.uid ?? 'demo',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+          batch.set(_fs.doc('spareparts', m['kode']), {
+            'stok': FieldValue.increment(selisih),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+    }
+    await batch.commit();
+  }
+
+  // 5. Work order servis link ke OUT
+  Future<String> createWO({required String nopol, required String motor, required String keluhan, String? mekanik}) async {
+    final ref = await _fs.col('work_orders').add({
+      'nopol': nopol, 'motor': motor, 'keluhan': keluhan, 'mekanik': mekanik ?? '',
+      'status': 'OPEN', // OPEN|PROSES|SELESAI|BATAL
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return ref.id;
+  }
+
+  Stream<List<Map<String, dynamic>>> watchWO({String? status}) {
+    Query<Map<String, dynamic>> q = _fs.col('work_orders').orderBy('createdAt', descending: true).limit(100);
+    if (status != null) q = q.where('status', isEqualTo: status);
+    return q.snapshots().map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
   // Import Excel foto kamu: Part Code, Part Name, Motor Type, Retail, TAX, Harga Jual - Support 3000 SKU (batch 500)

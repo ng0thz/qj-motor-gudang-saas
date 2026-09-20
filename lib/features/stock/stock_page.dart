@@ -5,6 +5,13 @@ import 'scan_page.dart';
 import 'rack_master.dart';
 import 'rack_picker.dart';
 import 'label_print_page.dart';
+import 'history_sheet.dart';
+import 'opname_page.dart';
+import 'alert_po_page.dart';
+import 'batch_page.dart';
+import 'workorder_page.dart';
+import 'label_batch_page.dart';
+import 'dashboard_page.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -86,7 +93,10 @@ class _StockPageState extends State<StockPage> {
           Row(children: [
             Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.grid_view), label: const Text('Pilih Rak'), onPressed: () async {
               final alamat = await openRackPicker(context, jenisPart: p.jenisPart, kategoriMoving: p.kategori, initialAlamat: p.alamat);
-              if (alamat != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Alamat: $alamat')));
+              if (alamat != null && mounted) {
+                await repo.moveRak(kode: p.kode, alamatBaru: alamat, alasan: 'Pindah dari ${p.alamat}');
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rak tersimpan: $alamat')));
+              }
             })),
             const SizedBox(width: 8),
             Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.picture_as_pdf), label: const Text('Label PDF'), onPressed: () {
@@ -96,7 +106,13 @@ class _StockPageState extends State<StockPage> {
             })),
           ]),
           const SizedBox(height: 8),
-          SizedBox(width: double.infinity, child: OutlinedButton(onPressed: (){}, child: const Text('History • Pindah Rak'))),
+          Row(children: [
+            Expanded(child: OutlinedButton(onPressed: () => openHistory(context, p.kode), child: const Text('History'))),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton(onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => BatchPage(kode: p.kode, nama: p.nama)));
+            }, child: const Text('Batch/Lot'))),
+          ]),
         ]),
       );
     });
@@ -112,17 +128,20 @@ class _StockPageState extends State<StockPage> {
   void _inOut(Sparepart p, String tipe) async {
     final qtyCtrl = TextEditingController(text: '1');
     final nopolCtrl = TextEditingController();
+    final woCtrl = TextEditingController();
     showDialog(context: context, builder: (_) => AlertDialog(
       title: Text('$tipe - ${p.kode}'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'Qty'), keyboardType: TextInputType.number),
         if (tipe=='OUT') TextField(controller: nopolCtrl, decoration: const InputDecoration(labelText: 'Nopol B 1234 ABC *wajib')),
+        TextField(controller: woCtrl, decoration: const InputDecoration(labelText: 'WO ID (opsional)')),
       ]),
       actions: [
+        TextButton(onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkOrderPage())), child: const Text('Pilih WO')),
         TextButton(onPressed: ()=> Navigator.pop(context), child: const Text('Batal')),
         ElevatedButton(onPressed: () async {
           final qty = int.tryParse(qtyCtrl.text) ?? 1;
-          await repo.addMovement(kode: p.kode, qty: qty, tipe: tipe, nopol: nopolCtrl.text);
+          await repo.addMovement(kode: p.kode, qty: qty, tipe: tipe, nopol: nopolCtrl.text.isEmpty ? null : nopolCtrl.text, woId: woCtrl.text.isEmpty ? null : woCtrl.text);
           if (mounted) { Navigator.pop(context); Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$tipe $qty berhasil'))); }
         }, child: const Text('Simpan')),
       ],
@@ -133,9 +152,16 @@ class _StockPageState extends State<StockPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gudang SaaS - 500 SKU'),
+        title: const Text('QJ Motor - Stok'),
         backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
-        actions: [IconButton(onPressed: _scanBarcode, icon: const Icon(Icons.qr_code_scanner))],
+        actions: [
+          IconButton(tooltip: 'Dashboard', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DashboardPage())), icon: const Icon(Icons.dashboard)),
+          IconButton(tooltip: 'Alert & PO', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AlertPOPage())), icon: const Icon(Icons.warning)),
+          IconButton(tooltip: 'Opname', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OpnamePage())), icon: const Icon(Icons.fact_check)),
+          IconButton(tooltip: 'WO', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkOrderPage())), icon: const Icon(Icons.build)),
+          IconButton(tooltip: 'Label batch', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LabelBatchPage())), icon: const Icon(Icons.print)),
+          IconButton(onPressed: _scanBarcode, icon: const Icon(Icons.qr_code_scanner)),
+        ],
       ),
       body: Column(children: [
         Padding(padding: const EdgeInsets.all(12), child: TextField(
