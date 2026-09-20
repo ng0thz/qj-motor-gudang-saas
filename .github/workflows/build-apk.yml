@@ -79,14 +79,19 @@ jobs:
           retention-days: 30
 
       # Deploy otomatis ke Firebase Hosting bila secret tersedia.
-      # Cara isi secret: repo Settings > Secrets > Actions > FIREBASE_SERVICE_ACCOUNT
-      # (isi = JSON service account dengan role Firebase Hosting Admin,
-      #  JANGAN pakai serviceAccountKey.json utama bila bisa — buat khusus CI)
+      # Isi secret: repo Settings > Secrets > Actions > FIREBASE_SERVICE_ACCOUNT
+      # (JSON service account role Firebase Hosting Admin; JANGAN pakai
+      # serviceAccountKey.json utama bila bisa — buat khusus CI).
+      # Tanpa secret: step dilewati, artifact web tetap bisa diunduh manual.
       - name: Deploy ke Firebase Hosting
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          projectId: gudang-saas-platform
-          channelId: live
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT belum diisi - lewati deploy."
+            exit 0
+          fi
+          npm install -g firebase-tools
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          firebase deploy --only hosting --project gudang-saas-platform --non-interactive
