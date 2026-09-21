@@ -13,9 +13,10 @@ class AuthSession {
   bool get isOps => role == 'ops_manager' || role == 'super_admin';
   bool get isStaff => role == 'staff_gudang' || isOps;
   bool get isFrontdesk => role == 'frontdesk' || isOps;
+  bool get isKepalaMekanik => role == 'kepala_mekanik' || isOps;
   bool get canApprove => isOps;
   bool get canManageMaster => isStaff; // spareparts, rak, barcode, harga
-  bool get canTransact => role == 'staff_gudang' || role == 'frontdesk' || isOps;
+  bool get canTransact => role == 'staff_gudang' || role == 'frontdesk' || role == 'kepala_mekanik' || isOps;
 
   void clear() {
     tenantId = 'qj-motor';

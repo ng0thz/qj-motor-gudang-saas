@@ -53,12 +53,12 @@ service cloud.firestore {
       }
       match /stock_movements/{id} {
         allow read: if isSignedIn() && sameTenant();
-        allow create: if isOneOf(["staff_gudang", "frontdesk", "ops_manager", "super_admin"]) && tenantFieldOk();
+        allow create: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         allow update, delete: if false;
       }
       match /work_orders/{id} {
         allow read: if isSignedIn() && sameTenant();
-        allow create, update: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && tenantFieldOk();
+        allow create, update: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         allow delete: if isRole("ops_manager") && sameTenant();
       }
       match /purchase_orders/{id} {
@@ -68,15 +68,15 @@ service cloud.firestore {
         allow delete: if isRole("ops_manager");
       }
       match /stock_opnames/{id} {
-        allow read: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
-        allow create: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && tenantFieldOk();
+        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && sameTenant();
+        allow create: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         // Approve (update status) hanya ops_manager
         allow update: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
         allow delete: if isRole("ops_manager");
       }
       match /stock_opnames/{id}/items/{kode} {
-        allow read: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
-        allow write: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && sameTenant();
+        allow write: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && sameTenant();
       }
       // Master FRT (warranty & service): baca semua login, tulis ops
       match /frt_warranty/{id} {
@@ -89,7 +89,7 @@ service cloud.firestore {
       }
       // Laporan harian: frontdesk/staff buat, ops baca, direksi baca
       match /daily_reports/{id} {
-        allow read: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "direksi_readonly", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "direksi_readonly", "super_admin"]) && sameTenant();
         allow create: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && tenantFieldOk();
         allow update, delete: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
       }

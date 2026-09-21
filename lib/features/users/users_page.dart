@@ -13,6 +13,7 @@ const List<String> kRoles = [
   'ops_manager',
   'staff_gudang',
   'frontdesk',
+  'kepala_mekanik',
   'mekanik',
   'direksi_readonly',
 ];
@@ -162,6 +163,8 @@ class _UsersPageState extends State<UsersPage> {
         return QjColors.navy;
       case 'frontdesk':
         return const Color(0xFF0284C7);
+      case 'kepala_mekanik':
+        return const Color(0xFF7C3AED);
       case 'mekanik':
         return const Color(0xFF0E7C5B);
       default:

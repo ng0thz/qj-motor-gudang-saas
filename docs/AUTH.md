@@ -14,6 +14,7 @@
 |---|---|---|
 | `staff_gudang` | Stok IN/OUT/PINDAH, rak, barcode, harga, batch, opname hitung, WO, closing | Approve opname, hapus data, kelola user |
 | `frontdesk` | WO + tracking + nota-ish, mutasi OUT, closing harian | Ubah master part, approve opname, PO |
+| `kepala_mekanik` | WO + mutasi OUT + ikut opname hitung + baca laporan | Ubah master, approve opname, PO, kelola user |
 | `mekanik` | Baca stok + WO | Tulis apa pun (read-only) |
 | `ops_manager` | Semua di atas + approve opname + PO + hapus + kelola user | — |
 | `direksi_readonly` | Baca laporan harian | Tulis apa pun |
