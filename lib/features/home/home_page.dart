@@ -14,6 +14,7 @@ import '../stock/stock_page.dart';
 import '../stock/stock_repository.dart';
 import '../stock/workorder_page.dart';
 import '../stock/workorder_track_page.dart';
+import '../users/users_page.dart';
 
 // Landing home QJ Motor: hero + statistik live + menu animasi.
 // Responsif: grid 2 kolom (HP) / 4 kolom (desktop), konten max 1100px.
@@ -69,6 +70,8 @@ class _HomePageState extends State<HomePage> {
       ['Dashboard', 'Nilai & analitik', Icons.dashboard, [const Color(0xFF475569), const Color(0xFF1E293B)], const DashboardPage()],
       ['Label Bin', 'Cetak QR per rak', Icons.print, [const Color(0xFF0891B2), const Color(0xFF155E75)], const LabelBatchPage()],
       ['Import Data', 'Update CSV + harga', Icons.upload_file, [const Color(0xFF4D7CFE), const Color(0xFF1D4ED8)], const ImportUpdatePage()],
+      if (s.isOps)
+        ['Kelola User', 'Buat + atur akses', Icons.people, [const Color(0xFF0F766E), const Color(0xFF134E4A)], const UsersPage()],
     ];
 
     return Scaffold(

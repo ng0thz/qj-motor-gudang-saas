@@ -1,9 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() { return request.auth != null; }
-    function tenant() { return request.auth.token.tenantId; }
-    function role() { return request.auth.token.role; }
+    // Profil users/{uid} sebagai fallback bila custom claims belum diset
+    // (user yang dibuat dari web oleh Ops tidak butuh Admin SDK / Blaze).
+    function userDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {};
+    }
+    function val(m, k) { return (k in m && m[k] != null) ? m[k] : ''; }
+    function tenant() {
+      return val(request.auth.token, 'tenantId') != ''
+        ? val(request.auth.token, 'tenantId')
+        : userDoc().get('tenantId', '');
+    }
+    function role() {
+      return val(request.auth.token, 'role') != ''
+        ? val(request.auth.token, 'role')
+        : userDoc().get('role', '');
+    }
+    // Akun nonaktif (aktif==false di users/{uid}) ditolak di semua pintu.
+    function isActive() { return userDoc().get('aktif', true) == true; }
+    function isSignedIn() { return request.auth != null && isActive(); }
     function isRole(r) { return isSignedIn() && role() == r; }
     function isOneOf(roles) { return isSignedIn() && role() in roles; }
     function sameTenant() { return tenant() == tenantId; }

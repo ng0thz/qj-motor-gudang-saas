@@ -27,7 +27,16 @@ dan **Firestore Rules menolak di server** walau request dimanipulasi.
 ### 1. Aktifkan provider
 Firebase Console → Authentication → Sign-in method → aktifkan **Email/Password**.
 
-### 2. Buat user pertama (butuh service account, lokal saja)
+### 2. Buat & kelola user — 2 cara
+
+**Cara A — dari web app (disarankan, tanpa CLI):** login sebagai Ops Manager →
+menu **Kelola User** → **Buat User** (nama, email, password awal, role).
+Bisa juga: nonaktif/aktifkan, ganti role, kirim link reset password.
+Tidak butuh Blaze/Functions: pembuatan memakai secondary Auth session,
+hak akses dibaca Rules dari profil `users/{uid}` sebagai fallback claims.
+Booting awal tetap butuh 1 akun ops pertama via Cara B.
+
+**Cara B — via CLI (butuh service account, lokal saja)**
 ```bash
 cd app
 npm i firebase-admin   # sekali saja
@@ -36,6 +45,7 @@ node tools/create_user.js adi@qjmotor.com Rahasia123 qj-motor staff_gudang "Adi"
 node tools/create_user.js frontdesk@qjmotor.com Rahasia123 qj-motor frontdesk "Frontdesk"
 ```
 Script membuat user Auth + custom claims `{tenantId, role}` + dokumen `users/{uid}` (fallback bila claims belum refresh).
+Akun nonaktif: set `aktif=false` (dari web atau CLI) → login ditolak app DAN ditolak rules server.
 
 ### 3. Deploy rules
 ```bash

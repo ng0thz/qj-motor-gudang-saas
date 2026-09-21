@@ -35,6 +35,17 @@ class AuthService {
     }
     s.tenantId = tenant.isEmpty ? 'qj-motor' : tenant;
     s.role = role;
+    // Tolak akun yang dinonaktifkan Ops (aktif==false di users/{uid}).
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists && (doc.data()?['aktif'] ?? true) == false) {
+        await _auth.signOut();
+        s.uid = '';
+        throw const _AkunNonaktif();
+      }
+    } catch (e) {
+      if (e is _AkunNonaktif) rethrow;
+    }
   }
 
   // Mekanik: login anonymous, role diambil dari users/{uid} yg dibuat Ops.
@@ -49,4 +60,10 @@ class AuthService {
     await _auth.signOut();
     AuthSession.instance.clear();
   }
+}
+
+class _AkunNonaktif implements Exception {
+  const _AkunNonaktif();
+  @override
+  String toString() => 'Akun dinonaktifkan. Hubungi Ops Manager.';
 }
