@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../core/session.dart';
+import 'selesaikan_sheet.dart';
 import 'stock_repository.dart';
 
 // Tracking motor konsumen untuk frontdesk (mobile + desktop).
@@ -54,6 +57,58 @@ class _WorkOrderTrackPageState extends State<WorkOrderTrackPage> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WO terupdate')));
   }
 
+  // Tombol 1-tap Selesai / Batal sesuai aturan (10 menit / supervisor).
+  Widget _tombolSelesai() {
+    final selesai = '${pilih!['status']}'.toUpperCase() == 'SELESAI';
+    final supervisor = AuthSession.instance.isOps || AuthSession.instance.isKepalaMekanik;
+    if (!selesai) {
+      return SizedBox(
+        height: 54,
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.check_circle, size: 24),
+          label: const Text('TAP SELESAI', style: TextStyle(fontSize: 16)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          onPressed: () => openKonfirmasiSelesai(
+            context,
+            woId: '${pilih!['id']}',
+            judul: '${pilih!['nopol']} • ${pilih!['motor'] ?? pilih!['model'] ?? ''}',
+            subJudul: '${pilih!['kategori'] ?? ''} • ${_tgl(pilih!['createdAt'])}',
+            onBerhasil: () async {
+              final fresh = await repo.fetchWOByNopol('${pilih!['nopol']}');
+              final upd = fresh.where((w) => '${w['id']}' == '${pilih!['id']}');
+              if (mounted) setState(() => pilih = upd.isNotEmpty ? upd.first : {...pilih!, 'status': 'SELESAI'});
+            },
+          ),
+        ),
+      );
+    }
+    final oleh = (pilih!['selesaiOleh'] ?? {}) as Map;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+        child: Text('✅ Selesai oleh ${oleh['email'] ?? '-'}',
+          style: const TextStyle(fontSize: 12)),
+      ),
+      const SizedBox(height: 6),
+      OutlinedButton.icon(
+        icon: const Icon(Icons.undo, size: 18),
+        label: Text(supervisor ? 'Batalkan (supervisor)' : 'Batalkan (maks 10 mnt)'),
+        onPressed: () async {
+          final hasil = await repo.batalkanSelesai('${pilih!['id']}', supervisor: supervisor);
+          if (!mounted) return;
+          if (hasil == 'ditolak') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Lewat 10 menit — hanya Kepala Mekanik/Ops yang bisa batalkan')));
+          } else if (hasil == 'ok') {
+            setState(() => pilih = {...pilih!, 'status': 'PROSES'});
+          }
+        },
+      ),
+    ]);
+  }
+
   String _tgl(dynamic ts) {
     if (ts == null) return '-';
     try {
@@ -97,8 +152,24 @@ class _WorkOrderTrackPageState extends State<WorkOrderTrackPage> {
         final detailPane = pilih == null
             ? const Center(child: Text('Pilih WO untuk lihat part + update + saran next service'))
             : ListView(padding: const EdgeInsets.all(12), children: [
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: repo.streamWODoc('${pilih!['id']}'),
+                  builder: (c, s) {
+                    final pending = s.data?.metadata.hasPendingWrites ?? false;
+                    if (!pending) return const SizedBox.shrink();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(8)),
+                      child: const Text('⏳ Belum sinkron — tersimpan di HP, terkirim otomatis saat online',
+                        style: TextStyle(fontSize: 11)),
+                    );
+                  },
+                ),
                 Text('${pilih!['nopol']} • ${pilih!['motor'] ?? pilih!['model'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 Text('Keluhan: ${pilih!['keluhan'] ?? '-'} • ${_tgl(pilih!['createdAt'])}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 8),
+                _tombolSelesai(),
                 const SizedBox(height: 8),
                 const Text('Part yang pernah dipakai', style: TextStyle(fontWeight: FontWeight.bold)),
                 ...((pilih!['parts'] ?? []) as List).map((p) => ListTile(dense: true,

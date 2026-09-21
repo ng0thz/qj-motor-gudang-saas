@@ -14,6 +14,8 @@ class AuthSession {
   bool get isStaff => role == 'staff_gudang' || isOps;
   bool get isFrontdesk => role == 'frontdesk' || isOps;
   bool get isKepalaMekanik => role == 'kepala_mekanik' || isOps;
+  bool get isAdminSales => role == 'admin_sales' || isOps;
+  bool get canBookPDI => role == 'admin_sales' || role == 'frontdesk' || isOps;
   bool get canApprove => isOps;
   bool get canManageMaster => isStaff; // spareparts, rak, barcode, harga
   bool get canTransact => role == 'staff_gudang' || role == 'frontdesk' || role == 'kepala_mekanik' || isOps;

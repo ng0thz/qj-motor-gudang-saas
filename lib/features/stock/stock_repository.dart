@@ -277,11 +277,13 @@ class StockRepository {
     String kuponNo = '', bool kuponStempel = false,
     List<Map<String, dynamic>> jobs = const [], List<Map<String, dynamic>> parts = const [],
     int labourTotal = 0, int partsTotal = 0,
+    Map<String, dynamic> extra = const {},
   }) async {
     final ref = await _fs.col('work_orders').add({
       'tenantId': _fs.effectiveTenantId,
       'nopol': nopol, 'motor': motor, 'model': model, 'motorClass': model.isEmpty ? '' : kelasOf(model), 'tipe': tipe,
       'kategori': kategori, 'kuponNo': kuponNo, 'kuponStempel': kuponStempel,
+      ...extra,
       'keluhan': keluhan, 'mekanik': mekanik ?? '',
       'jobs': jobs, 'parts': parts,
       'labourTotal': labourTotal, 'partsTotal': partsTotal,
@@ -296,6 +298,70 @@ class StockRepository {
     await _fs.col('work_orders').doc(id).set({
       ...data, 'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  // Selesaikan WO secara atomik + audit (siapa/kapan).
+  // Idempoten: WO yang sudah SELESAI tidak berubah (return 'sudah').
+  // Return: 'ok' | 'sudah'.
+  Future<String> selesaikanWO(String id) async {
+    final me = _fs.auth.currentUser;
+    final hasil = await _fs.db.runTransaction((tx) async {
+      final snap = await tx.get(_fs.col('work_orders').doc(id));
+      if (!snap.exists) return 'hilang';
+      final m = snap.data()!;
+      if ('${m['status']}'.toUpperCase() == 'SELESAI') return 'sudah';
+      tx.set(_fs.col('work_orders').doc(id), {
+        'status': 'SELESAI',
+        'selesaiOleh': {'uid': me?.uid ?? '', 'email': me?.email ?? ''},
+        'selesaiAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      tx.set(_fs.col('work_orders').doc(id).collection('riwayat').doc(), {
+        'aksi': 'SELESAI',
+        'olehUid': me?.uid ?? '',
+        'olehEmail': me?.email ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    });
+    return hasil;
+  }
+
+  // Batalkan penyelesaian: oleh penyelesai maks 10 menit, atau kepala/ops kapan saja.
+  // Return: 'ok' | 'ditolak' | 'bukan-selesai'.
+  Future<String> batalkanSelesai(String id, {required bool supervisor}) async {
+    final me = _fs.auth.currentUser;
+    final hasil = await _fs.db.runTransaction((tx) async {
+      final snap = await _fs.col('work_orders').doc(id);
+      final doc = await tx.get(snap);
+      if (!doc.exists) return 'hilang';
+      final m = doc.data()!;
+      if ('${m['status']}'.toUpperCase() != 'SELESAI') return 'bukan-selesai';
+      final oleh = (m['selesaiOleh'] ?? {}) as Map;
+      bool boleh = supervisor;
+      if (!boleh) {
+        final selesaiAt = m['selesaiAt'];
+        if ('${oleh['uid'] ?? ''}' == (me?.uid ?? '') && selesaiAt != null) {
+          try {
+            final dt = (selesaiAt as dynamic).toDate() as DateTime;
+            boleh = DateTime.now().difference(dt).inMinutes <= 10;
+          } catch (_) {}
+        }
+      }
+      if (!boleh) return 'ditolak';
+      tx.set(_fs.col('work_orders').doc(id), {
+        'status': 'PROSES',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      tx.set(_fs.col('work_orders').doc(id).collection('riwayat').doc(), {
+        'aksi': 'BATAL_SELESAI',
+        'olehUid': me?.uid ?? '',
+        'olehEmail': me?.email ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    });
+    return hasil;
   }
 
   // Master FRT (frt_warranty / frt_service), doc id = faultCode (warranty) / slug job (service)
@@ -345,6 +411,11 @@ class StockRepository {
   Future<List<Map<String, dynamic>>> fetchMovementsByWO(String woId) async {
     final s = await _fs.col('stock_movements').where('woId', isEqualTo: woId).limit(100).get();
     return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+
+  // Stream 1 WO + metadata (untuk badge "Belum sinkron" saat offline).
+  Stream<DocumentSnapshot<Map<String, dynamic>>> streamWODoc(String id) {
+    return _fs.col('work_orders').doc(id).snapshots(includeMetadataChanges: true);
   }
 
   // Laporan closing harian: agregasi WO + mutasi hari ini + stok kritis + PO

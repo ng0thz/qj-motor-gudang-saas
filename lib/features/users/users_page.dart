@@ -15,6 +15,7 @@ const List<String> kRoles = [
   'frontdesk',
   'kepala_mekanik',
   'mekanik',
+  'admin_sales',
   'direksi_readonly',
 ];
 

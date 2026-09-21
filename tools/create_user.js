@@ -25,7 +25,7 @@ async function main() {
     console.error('Pakai: node tools/create_user.js <email> <password> <tenantId> <role> [nama]');
     process.exit(1);
   }
-  const valid = ['super_admin', 'ops_manager', 'staff_gudang', 'frontdesk', 'kepala_mekanik', 'mekanik', 'direksi_readonly'];
+  const valid = ['super_admin', 'ops_manager', 'staff_gudang', 'frontdesk', 'kepala_mekanik', 'mekanik', 'admin_sales', 'direksi_readonly'];
   if (!valid.includes(role)) {
     console.error(`Role harus salah satu: ${valid.join(', ')}`);
     process.exit(1);
