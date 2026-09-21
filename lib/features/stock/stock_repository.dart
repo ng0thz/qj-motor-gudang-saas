@@ -408,6 +408,12 @@ class StockRepository {
     return out.take(50).toList();
   }
 
+  // Booking PDI untuk monitoring (filter kategori di client, hindari composite index).
+  Future<List<Map<String, dynamic>>> fetchPDIBookings({int limit = 200}) async {
+    final s = await _fs.col('work_orders').orderBy('createdAt', descending: true).limit(limit).get();
+    return s.docs.map((d) => {'id': d.id, ...d.data()}).where((w) => '${w['kategori']}' == 'PDI').toList();
+  }
+
   Future<List<Map<String, dynamic>>> fetchMovementsByWO(String woId) async {
     final s = await _fs.col('stock_movements').where('woId', isEqualTo: woId).limit(100).get();
     return s.docs.map((d) => {'id': d.id, ...d.data()}).toList();

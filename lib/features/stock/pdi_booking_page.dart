@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/session.dart';
 import 'motor_class.dart';
 import 'stock_repository.dart';
 // Catatan: Timestamp dipakai untuk tglSiap/tglKirim.
+// Halaman ini KHUSUS Web (admin_sales bekerja dari desktop).
 
 // Booking PDI oleh Admin Sales: tipe motor, warna, tanggal dipersiapkan,
 // tanggal + jam pengiriman. Masuk sebagai WO kategori PDI status OPEN.
@@ -30,6 +32,16 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!kIsWeb) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Booking PDI')),
+        body: const Center(child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Booking PDI hanya lewat Web (desktop).\nBuka aplikasi web di laptop/PC.',
+            textAlign: TextAlign.center),
+        )),
+      );
+    }
     if (!AuthSession.instance.canBookPDI) {
       return Scaffold(
         appBar: AppBar(title: const Text('Booking PDI')),
@@ -72,29 +84,66 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
             child: Text(loading ? 'Menyimpan...' : 'SIMPAN BOOKING PDI'))),
         const SizedBox(height: 12),
-        const Text('Booking masuk hari ini', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('Monitoring pergerakan PDI', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 6),
         FutureBuilder<List<Map<String, dynamic>>>(
-          future: _bookingHariIni(),
+          future: repo.fetchPDIBookings(),
           builder: (c, s) {
             if (!s.hasData) return const LinearProgressIndicator();
-            if (s.data!.isEmpty) return const Text('Belum ada booking hari ini', style: TextStyle(fontSize: 12, color: Colors.grey));
-            return Column(children: s.data!.map((w) => Card(
-              child: ListTile(
-                title: Text('${w['motor'] ?? w['model'] ?? ''} • ${w['warna'] ?? '-'}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                subtitle: Text('Siap: ${_str(w['tglSiap'])} • Kirim: ${_str(w['tglKirim'])} ${_jamStr(w)} • ${w['status']}',
-                  style: const TextStyle(fontSize: 11)),
-              ))).toList());
+            final antre = s.data!.where((w) => '${w['status']}'.toUpperCase() != 'SELESAI').toList();
+            final selesai = s.data!.where((w) => '${w['status']}'.toUpperCase() == 'SELESAI').toList();
+            return DefaultTabController(
+              length: 2,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TabBar(labelColor: const Color(0xFF1B2A4A), tabs: [
+                  Tab(text: 'Antrian (${antre.length})'),
+                  Tab(text: 'Selesai (${selesai.length})'),
+                ]),
+                SizedBox(
+                  height: 320,
+                  child: TabBarView(children: [
+                    _daftarPDI(antre, 'Belum ada antrean PDI'),
+                    _daftarPDI(selesai, 'Belum ada PDI selesai'),
+                  ]),
+                ),
+              ]),
+            );
           },
         ),
       ]),
     );
   }
 
-  Future<List<Map<String, dynamic>>> _bookingHariIni() async {
-    final now = DateTime.now();
-    final list = await repo.fetchWOSince(DateTime(now.year, now.month, now.day));
-    return list.where((w) => '${w['kategori']}' == 'PDI').toList();
+  Widget _daftarPDI(List<Map<String, dynamic>> list, String kosong) {
+    if (list.isEmpty) return Center(child: Text(kosong, style: const TextStyle(fontSize: 12, color: Colors.grey)));
+    return ListView.builder(
+      itemCount: list.length,
+      itemBuilder: (_, i) {
+        final w = list[i];
+        return Card(
+          child: ListTile(
+            title: Text('${w['motor'] ?? w['model'] ?? ''} • ${w['warna'] ?? '-'}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            subtitle: Text(
+              '${w['customer'] ?? ''} • Siap: ${_str(w['tglSiap'])}\nKirim: ${_str(w['tglKirim'])} ${_jamStr(w)} • ${w['status']} • ${_sisa(w)}',
+              style: const TextStyle(fontSize: 11)),
+            isThreeLine: true,
+          ));
+      });
+  }
+
+  // Hitung mundur ke tanggal pengiriman
+  String _sisa(Map<String, dynamic> w) {
+    try {
+      final t = (w['tglKirim'] as dynamic).toDate() as DateTime;
+      final now = DateTime.now();
+      final h = DateTime(t.year, t.month, t.day).difference(DateTime(now.year, now.month, now.day)).inDays;
+      if (h < 0) return 'terlewat ${-h} hari';
+      if (h == 0) return 'kirim HARI INI';
+      return 'sisa $h hari';
+    } catch (_) {
+      return '';
+    }
   }
 
   String _str(dynamic ts) {
