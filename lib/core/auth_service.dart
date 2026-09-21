@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'session.dart';
 
 class AuthService {
@@ -56,6 +58,33 @@ class AuthService {
     return cred;
   }
 
+  // Login Google KHUSUS Web (tombol disembunyikan di HP).
+  // Hanya untuk email yang SUDAH didaftarkan Ops (ada users/{uid}).
+  // Uid sama dengan akun email/password bila emailnya sama -> tidak bentrok.
+  Future<void> loginGoogleWeb() async {
+    if (!kIsWeb) throw const _GoogleHanyaWeb();
+    final gUser = await GoogleSignIn().signIn();
+    if (gUser == null) throw const _GoogleBatal();
+    final gAuth = await gUser.authentication;
+    final cred = await _auth.signInWithCredential(
+      GoogleAuthProvider.credential(accessToken: gAuth.accessToken, idToken: gAuth.idToken),
+    );
+    // Wajib terdaftar: tolak akun asing.
+    bool terdaftar = false;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).get();
+      terdaftar = doc.exists;
+    } catch (_) {
+      terdaftar = false;
+    }
+    if (!terdaftar) {
+      await _auth.signOut();
+      await GoogleSignIn().signOut();
+      throw const _BelumTerdaftar();
+    }
+    await refreshSession(cred.user);
+  }
+
   Future<void> logout() async {
     await _auth.signOut();
     AuthSession.instance.clear();
@@ -66,4 +95,22 @@ class _AkunNonaktif implements Exception {
   const _AkunNonaktif();
   @override
   String toString() => 'Akun dinonaktifkan. Hubungi Ops Manager.';
+}
+
+class _GoogleHanyaWeb implements Exception {
+  const _GoogleHanyaWeb();
+  @override
+  String toString() => 'Login Google hanya tersedia di web.';
+}
+
+class _GoogleBatal implements Exception {
+  const _GoogleBatal();
+  @override
+  String toString() => 'Login Google dibatalkan.';
+}
+
+class _BelumTerdaftar implements Exception {
+  const _BelumTerdaftar();
+  @override
+  String toString() => 'Email Google ini belum didaftarkan Ops. Hubungi Ops Manager.';
 }

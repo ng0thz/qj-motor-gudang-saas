@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../core/auth_service.dart';
 
@@ -24,6 +25,18 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => error = _pesan(e.code));
     } catch (e) {
       setState(() => error = 'Gagal login: $e');
+    }
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> _loginGoogle() async {
+    setState(() { loading = true; error = null; });
+    try {
+      await AuthService().loginGoogleWeb();
+    } on FirebaseAuthException catch (e) {
+      setState(() => error = _pesan(e.code));
+    } catch (e) {
+      setState(() => error = '$e');
     }
     if (mounted) setState(() => loading = false);
   }
@@ -80,6 +93,15 @@ class _LoginPageState extends State<LoginPage> {
                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Text('MASUK'),
           )),
+          if (kIsWeb) ...[
+            const SizedBox(height: 10),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(
+              onPressed: loading ? null : _loginGoogle,
+              icon: const Icon(Icons.g_mobiledata, size: 24),
+              label: const Text('Masuk dengan Google'),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+            )),
+          ],
         ]))),
         const SizedBox(height: 12),
         const Text('Akun dibuat oleh Ops Manager.\nMekanik: gunakan akun yang didaftarkan.',

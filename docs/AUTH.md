@@ -26,6 +26,7 @@ dan **Firestore Rules menolak di server** walau request dimanipulasi.
 
 ### 1. Aktifkan provider
 Firebase Console → Authentication → Sign-in method → aktifkan **Email/Password**.
+Untuk tombol Google di web: aktifkan juga **Google** (tidak perlu SHA-1 untuk web).
 
 ### 2. Buat & kelola user — 2 cara
 
@@ -60,7 +61,15 @@ File: `firestore.rules`. Cek path → user hanya bisa baca/tulis di `/tenants/{t
 - `android/app/google-services.json` — config Firebase Android.
 - `lib/firebase_options.dart` — bila pakai flutterfire.
 
-### 5. Batasan yang disadari
+### 5. Login Google (khusus web)
+Tombol "Masuk dengan Google" hanya tampil di web (`kIsWeb`), tidak di HP.
+Syarat: email Google tersebut **sudah didaftarkan Ops** (ada `users/{uid}`),
+kalau tidak login ditolak otomatis. Uid sama dengan akun email/password
+bila emailnya sama → tenant & role ikut, tidak bentrok. Jangan ubah
+pengaturan "one account per email" di Console.
+
+### 6. Batasan yang disadari
 - Mekanik masih login anonymous + profil `users/{uid}` (PIN via Function belum dibuat).
 - Belum ada App Check / 2FA / auto-lock; password policy ikut default Firebase.
 - Token claims di-refresh saat login; bila role diubah admin, user harus logout-login ulang.
+- Tombol Google di APK butuh SHA-1 + `google-services.json` (PR pending) — sementara web saja.
