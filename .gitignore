@@ -26,3 +26,7 @@ Thumbs.db
 
 # Node
 node_modules/
+
+.metadata
+android/local.properties
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
