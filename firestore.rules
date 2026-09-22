@@ -24,7 +24,6 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null && isActive(); }
     function isRole(r) { return isSignedIn() && role() == r; }
     function isOneOf(roles) { return isSignedIn() && role() in roles; }
-    function sameTenant() { return tenant() == tenantId; }
     // Field tenantId opsional (dokumen lama tidak punya); kalau ada harus cocok dengan path.
     function tenantFieldOk() {
       return !('tenantId' in request.resource.data) || request.resource.data.tenantId == tenantId;
@@ -38,87 +37,87 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId} {
-      allow read: if isSignedIn() && sameTenant();
+      allow read: if isSignedIn() && (tenant() == tenantId);
       allow write: if isRole("super_admin");
 
       match /spareparts/{kode} {
-        allow read: if isSignedIn() && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
         allow create, update: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && tenantFieldOk();
-        allow delete: if isRole("ops_manager") && sameTenant();
+        allow delete: if isRole("ops_manager") && (tenant() == tenantId);
       }
       // Subkoleksi part: batch/lot + riwayat harga
       match /spareparts/{kode}/{sub}/{id} {
-        allow read: if isSignedIn() && sameTenant();
-        allow write: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       match /stock_movements/{id} {
-        allow read: if isSignedIn() && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
         allow create: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         allow update, delete: if false;
       }
       match /work_orders/{id} {
-        allow read: if isSignedIn() && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
         // admin_sales hanya boleh buat PDI (bukan WO servis)
         allow create: if (isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"])
           || (isRole("admin_sales") && request.resource.data.kategori == 'PDI')) && tenantFieldOk();
         allow update: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
-        allow delete: if isRole("ops_manager") && sameTenant();
+        allow delete: if isRole("ops_manager") && (tenant() == tenantId);
       }
       // Jejak audit tap Selesai/Batal (ditulis transaksi, hanya tambah)
       match /work_orders/{id}/riwayat/{rid} {
-        allow read: if isSignedIn() && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
         allow create: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         allow update, delete: if false;
       }
       match /purchase_orders/{id} {
-        allow read: if isOneOf(["staff_gudang", "ops_manager", "frontdesk", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["staff_gudang", "ops_manager", "frontdesk", "super_admin"]) && (tenant() == tenantId);
         allow create: if isOneOf(["staff_gudang", "ops_manager", "super_admin"]) && tenantFieldOk();
-        allow update: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
+        allow update: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow delete: if isRole("ops_manager");
       }
       match /stock_opnames/{id} {
-        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow create: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         // Approve (update status) hanya ops_manager
-        allow update: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
+        allow update: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow delete: if isRole("ops_manager");
       }
       match /stock_opnames/{id}/items/{kode} {
-        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && sameTenant();
-        allow write: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Master FRT (warranty & service): baca semua login, tulis ops
       match /frt_warranty/{id} {
-        allow read: if isSignedIn() && sameTenant();
-        allow write: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
+        allow write: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       match /frt_service/{id} {
-        allow read: if isSignedIn() && sameTenant();
-        allow write: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
+        allow write: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Laporan harian: frontdesk/staff buat, ops baca, direksi baca
       match /daily_reports/{id} {
-        allow read: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "direksi_readonly", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "direksi_readonly", "super_admin"]) && (tenant() == tenantId);
         allow create: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && tenantFieldOk();
-        allow update, delete: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
+        allow update, delete: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       match /report_recipients/{id} {
-        allow read: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
-        allow write: if isOneOf(["ops_manager", "super_admin"]) && sameTenant();
+        allow read: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow write: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Koleksi lama (kompatibilitas)
       match /services/{id} {
-        allow read, create, update: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
+        allow read, create, update: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       match /invoices/{id} {
-        allow read: if isSignedIn() && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
         allow create: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]);
       }
       match /customers/{nopol} {
-        allow read, write: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && sameTenant();
+        allow read, write: if isOneOf(["frontdesk", "staff_gudang", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       match /reports_daily/{id} {
-        allow read: if isSignedIn() && sameTenant();
+        allow read: if isSignedIn() && (tenant() == tenantId);
         allow write: if false;
       }
     }
