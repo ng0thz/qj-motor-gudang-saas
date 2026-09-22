@@ -30,6 +30,26 @@ class _UsersPageState extends State<UsersPage> {
   String? _error;
   bool _busy = false;
 
+  // Sinkron direktori team/{uid} (dipakai dropdown mekanik PDI) dari profil user.
+  Future<void> _syncTeam(String uid, Map<String, dynamic> data) async {
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      final m = doc.data() ?? data;
+      await _db
+          .collection('tenants')
+          .doc(AuthSession.instance.tenantId)
+          .collection('team')
+          .doc(uid)
+          .set({
+        'nama': '${m['nama'] ?? m['email'] ?? ''}',
+        'email': '${m['email'] ?? ''}',
+        'role': '${m['role'] ?? ''}',
+        'aktif': m['aktif'] != false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   Stream<List<Map<String, dynamic>>> _watchUsers() {
     return _db
         .collection('users')
@@ -98,6 +118,7 @@ class _UsersPageState extends State<UsersPage> {
         'dibuatOleh': AuthSession.instance.email,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await _syncTeam(cred.user!.uid, {'role': role});
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('User ${emailCtrl.text.trim()} ($role) dibuat. Sampaikan password awal.')));
     } on FirebaseAuthException catch (e) {
@@ -120,6 +141,7 @@ class _UsersPageState extends State<UsersPage> {
     final aktif = !(u['aktif'] != false);
     await _db.collection('users').doc(u['uid']).set(
         {'aktif': aktif, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+    await _syncTeam(u['uid'] as String, {});
   }
 
   Future<void> _gantiRole(Map<String, dynamic> u) async {
@@ -142,6 +164,7 @@ class _UsersPageState extends State<UsersPage> {
     if (ok == true) {
       await _db.collection('users').doc(u['uid']).set(
           {'role': role, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      await _syncTeam(u['uid'] as String, {});
     }
   }
 

@@ -311,6 +311,14 @@ class StockRepository {
     await batch.commit();
   }
 
+  // Direktori tim untuk dropdown mekanik (filter role di client agar tanpa index komposit).
+  Stream<List<Map<String, dynamic>>> watchTeam() {
+    return _fs.col('team').where('aktif', isEqualTo: true).snapshots().map(
+      (s) => s.docs.map((d) => {'uid': d.id, ...d.data()}).toList()
+        ..sort((a, b) => '${a['nama']}'.compareTo('${b['nama']}')),
+    );
+  }
+
   // 5. Work order servis link ke OUT (+ jobs FRT + parts + total)
   Future<String> createWO({
     required String nopol, required String motor, required String keluhan, String? mekanik,

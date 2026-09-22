@@ -25,6 +25,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
   DateTime? tglSiap;
   DateTime? tglKirim;
   TimeOfDay? jamKirim;
+  String? mekanikUid; // opsional: request ke mekanik tertentu (kosong = antre umum)
   bool loading = false;
 
   String _tgl(DateTime? d) => d == null ? 'Pilih tanggal' : DateFormat('dd/MM/yyyy').format(d);
@@ -77,6 +78,33 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
             final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
             if (t != null) setState(() => jamKirim = t);
           }),
+        const SizedBox(height: 10),
+        // Request ke mekanik tertentu (opsional — kosong = antre umum diambil siapa saja)
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: repo.watchTeam(),
+          builder: (c, s) {
+            final meks = (s.data ?? []).where((t) =>
+              t['role'] == 'mekanik' || t['role'] == 'kepala_mekanik').toList();
+            if (meks.isNotEmpty && mekanikUid != null &&
+                !meks.any((m) => m['uid'] == mekanikUid)) {
+              mekanikUid = null;
+            }
+            return DropdownButtonFormField<String>(
+              value: mekanikUid,
+              decoration: const InputDecoration(
+                labelText: 'Mekanik pelaksana (opsional)',
+                helperText: 'Kosong = antre umum, diambil mekanik yang siap',
+                border: OutlineInputBorder()),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('— Antre umum —')),
+                ...meks.map((m) => DropdownMenuItem(
+                  value: m['uid'] as String,
+                  child: Text('${m['nama']} (${m['role'] == 'kepala_mekanik' ? 'Kepala' : 'Mekanik'})'))),
+              ],
+              onChanged: (v) => setState(() => mekanikUid = v),
+            );
+          },
+        ),
         const SizedBox(height: 12),
         SizedBox(height: 52, width: double.infinity,
           child: ElevatedButton(
@@ -120,16 +148,97 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       itemCount: list.length,
       itemBuilder: (_, i) {
         final w = list[i];
+        final mek = '${w['mekanik'] ?? ''}';
         return Card(
           child: ListTile(
+            onTap: () => _kelolaPDI(w),
             title: Text('${w['motor'] ?? w['model'] ?? ''} • ${w['warna'] ?? '-'}',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             subtitle: Text(
-              '${w['customer'] ?? ''} • Siap: ${_str(w['tglSiap'])}\nKirim: ${_str(w['tglKirim'])} ${_jamStr(w)} • ${w['status']} • ${_sisa(w)}',
+              '${w['customer'] ?? ''} • Siap: ${_str(w['tglSiap'])}\nKirim: ${_str(w['tglKirim'])} ${_jamStr(w)} • ${w['status']} • ${_sisa(w)}\nMekanik: ${mek.isEmpty ? '— antre umum —' : mek}',
               style: const TextStyle(fontSize: 11)),
             isThreeLine: true,
+            trailing: const Icon(Icons.chevron_right, size: 18),
           ));
       });
+  }
+
+  // Kelola satu PDI: ganti mekanik + majukan status (OPEN->PROSES->SELESAI).
+  Future<void> _kelolaPDI(Map<String, dynamic> w) async {
+    final s = AuthSession.instance;
+    final bolehAtur = s.isOps || s.isFrontdesk || s.isAdminSales;
+    final bolehKerjakan = bolehAtur || s.isKepalaMekanik ||
+        (s.role == 'mekanik' && (w['mekanikUid'] == s.uid || '${w['mekanikUid'] ?? ''}'.isEmpty));
+    if (!bolehAtur && !bolehKerjakan) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hanya Sales/Frontdesk/Ops/mekanik terkait yang bisa kelola.')));
+      return;
+    }
+    String? mekUid = '${w['mekanikUid'] ?? ''}'.isEmpty ? null : '${w['mekanikUid']}';
+    final aksi = await showDialog<String>(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setD) => AlertDialog(
+        title: Text('${w['motor'] ?? ''} • ${w['warna'] ?? ''}', style: const TextStyle(fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Status: ${w['status']} • ${_sisa(w)}', style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 10),
+          if (bolehAtur) StreamBuilder<List<Map<String, dynamic>>>(
+            stream: repo.watchTeam(),
+            builder: (c2, s2) {
+              final meks = (s2.data ?? []).where((t) =>
+                t['role'] == 'mekanik' || t['role'] == 'kepala_mekanik').toList();
+              return DropdownButtonFormField<String>(
+                value: mekUid,
+                decoration: const InputDecoration(
+                  labelText: 'Mekanik pelaksana', border: OutlineInputBorder(), isDense: true),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('— Antre umum —')),
+                  ...meks.map((m) => DropdownMenuItem(
+                    value: m['uid'] as String, child: Text('${m['nama']}', style: const TextStyle(fontSize: 13)))),
+                ],
+                onChanged: (v) => setD(() => mekUid = v),
+              );
+            },
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+          if (bolehKerjakan && '${w['status']}'.toUpperCase() == 'OPEN')
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, 'proses'),
+              child: const Text('Mulai (PROSES)')),
+          if (bolehKerjakan && '${w['status']}'.toUpperCase() != 'SELESAI')
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () => Navigator.pop(ctx, 'selesai'),
+              child: const Text('Selesaikan')),
+          if (bolehAtur)
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, 'simpan'),
+              child: const Text('Simpan mekanik')),
+        ],
+      )));
+    if (aksi == null || !mounted) return;
+    try {
+      if (aksi == 'simpan') {
+        String mekNama = '';
+        if (mekUid != null) {
+          final team = await repo.watchTeam().first;
+          mekNama = '${team.firstWhere((t) => t['uid'] == mekUid, orElse: () => {})['nama'] ?? ''}';
+        }
+        await repo.updateWO(w['id'] as String, {'mekanik': mekNama, 'mekanikUid': mekUid ?? ''});
+      } else if (aksi == 'proses') {
+        await repo.updateWO(w['id'] as String, {'status': 'PROSES'});
+      } else if (aksi == 'selesai') {
+        await repo.selesaikanWO(w['id'] as String);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDI diperbarui')));
+        setState(() {});
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+    }
   }
 
   // Hitung mundur ke tanggal pengiriman
@@ -167,10 +276,19 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       return;
     }
     setState(() => loading = true);
+    String mekNama = '';
+    if (mekanikUid != null) {
+      try {
+        final team = await repo.watchTeam().first;
+        final m = team.firstWhere((t) => t['uid'] == mekanikUid, orElse: () => {});
+        mekNama = '${m['nama'] ?? ''}';
+      } catch (_) {}
+    }
     await repo.createWO(
       nopol: rangkaCtrl.text.trim().isEmpty ? 'PDI' : rangkaCtrl.text.trim(),
       motor: model,
       keluhan: 'Booking PDI — ${customerCtrl.text.trim()}',
+      mekanik: mekNama,
       model: model,
       tipe: 'SERVICE',
       kategori: 'PDI',
@@ -181,11 +299,13 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
         'tglKirim': Timestamp.fromDate(tglKirim!),
         'jamKirim': {'jam': jamKirim!.hour, 'menit': jamKirim!.minute},
         'dibookingOleh': AuthSession.instance.email,
+        'mekanikUid': mekanikUid ?? '',
       },
     );
     if (!mounted) return;
     setState(() {
       loading = false;
+      mekanikUid = null;
       warnaCtrl.clear();
       customerCtrl.clear();
       rangkaCtrl.clear();
