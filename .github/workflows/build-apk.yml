@@ -39,6 +39,9 @@ jobs:
           sed -i -E "s/minSdk = flutter\.minSdkVersion/minSdk = 23/" android/app/build.gradle || true
           grep -n "minSdk" android/app/build.gradle || true
 
+      - name: Generate ikon launcher QJ
+        run: dart run flutter_launcher_icons
+
       - name: Build APK Release (QJ Motor)
         run: flutter build apk --release --dart-define=TENANT_ID=qj-motor
 

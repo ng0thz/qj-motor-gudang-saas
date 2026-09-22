@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/auth_service.dart';
 import '../../core/session.dart';
 import '../../core/qj_theme.dart';
+import '../../core/qj_anim.dart';
 import '../stock/alert_po_page.dart';
 import '../stock/closing_report_page.dart';
 import '../stock/dashboard_page.dart';
@@ -55,7 +56,21 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _go(Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (_, a, __) => FadeTransition(
+          opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
+                .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+            child: page,
+          ),
+        ),
+        transitionsBuilder: (_, a, __, child) => child,
+      ),
+    );
   }
 
   @override
@@ -84,7 +99,11 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: QjColors.bg,
       appBar: AppBar(
-        title: const Text('QJ Motor'),
+        title: Row(children: [
+          Image.asset('assets/qj_header_logo.png', height: 26,
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.two_wheeler, color: Colors.white, size: 22)),
+        ]),
         backgroundColor: QjColors.navy,
         foregroundColor: Colors.white,
         actions: [
@@ -108,6 +127,12 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(3),
+          child: Container(height: 3,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [QjColors.red, Colors.transparent], stops: [0.22, 0.22]))),
+        ),
       ),
       body: LayoutBuilder(builder: (c, box) {
         final wide = box.maxWidth >= 1000;
@@ -138,27 +163,32 @@ class _HomePageState extends State<HomePage> {
                     Text('$tgl • Tenant ${s.tenantId}',
                         style: const TextStyle(color: Colors.white70, fontSize: 12)),
                   ])),
-                  Image.asset('assets/adidaya_logo_transparent.png', height: 56,
+                  Image.asset('assets/qj_logo_white.png', width: 180,
                       errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.two_wheeler, color: QjColors.red, size: 48)),
+                          const Icon(Icons.two_wheeler, color: Colors.white, size: 48)),
                 ]),
               ),
               const SizedBox(height: 14),
               // STATS
-              GridView.count(
-                crossAxisCount: wide ? 4 : 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.7,
-                children: [
-                  QjStatCard(value: stats['sku']!, label: 'Total SKU', icon: Icons.inventory_2, color: QjColors.navy),
-                  QjStatCard(value: stats['wo']!, label: 'WO Hari Ini', icon: Icons.build, color: QjColors.red),
-                  QjStatCard(value: stats['menipis']!, label: 'Stok Menipis', icon: Icons.warning_amber_rounded, color: QjColors.orange),
-                  QjStatCard(value: stats['habis']!, label: 'Stok Habis', icon: Icons.remove_shopping_cart, color: QjColors.redDark),
-                ],
-              ),
+              Builder(builder: (c2) {
+                final isDash = stats['sku'] == '—';
+                return GridView.count(
+                  crossAxisCount: wide ? 4 : 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1.7,
+                  children: isDash
+                      ? List.generate(4, (_) => const ShimmerBox(height: 74, borderRadius: 14))
+                      : [
+                          QjStatCardCount(value: stats['sku']!, label: 'Total SKU', icon: Icons.inventory_2, color: QjColors.navy),
+                          QjStatCardCount(value: stats['wo']!, label: 'WO Hari Ini', icon: Icons.build, color: QjColors.red),
+                          QjStatCardCount(value: stats['menipis']!, label: 'Stok Menipis', icon: Icons.warning_amber_rounded, color: QjColors.orange),
+                          QjStatCardCount(value: stats['habis']!, label: 'Stok Habis', icon: Icons.remove_shopping_cart, color: QjColors.redDark),
+                        ],
+                );
+              }),
               const SizedBox(height: 14),
               const Text('Menu Operasional', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: QjColors.text)),
               const SizedBox(height: 10),
@@ -172,14 +202,8 @@ class _HomePageState extends State<HomePage> {
                 childAspectRatio: 1.05,
                 children: List.generate(menus.length, (i) {
                   final m = menus[i];
-                  return TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: Duration(milliseconds: 350 + i * 60),
-                    curve: Curves.easeOutCubic,
-                    builder: (_, v, child) => Opacity(
-                      opacity: v,
-                      child: Transform.translate(offset: Offset(0, 24 * (1 - v)), child: child),
-                    ),
+                  return StaggerIn(
+                    index: i,
                     child: QjMenuCard(
                       title: m[0] as String,
                       subtitle: m[1] as String,
@@ -191,9 +215,14 @@ class _HomePageState extends State<HomePage> {
                 }),
               ),
               const SizedBox(height: 20),
+              Center(child: Image.asset('assets/qj_header_logo_light.png', height: 18,
+                errorBuilder: (_, __, ___) =>
+                    const Text('QJ Motor • ALWAYS FORWARD',
+                        style: TextStyle(fontSize: 11, color: QjColors.muted, letterSpacing: 2)))),
+              const SizedBox(height: 6),
               const Center(
-                  child: Text('QJ Motor • ALWAYS FORWARD',
-                      style: TextStyle(fontSize: 11, color: QjColors.muted, letterSpacing: 2))),
+                  child: Text('QJ Motor Adidaya • ALWAYS FORWARD',
+                      style: TextStyle(fontSize: 10, color: QjColors.muted, letterSpacing: 1.5))),
             ]),
           ),
         );

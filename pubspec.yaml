@@ -35,6 +35,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_icons:
+  android: true
+  ios: false
+  web: false
+  image_path: assets/qj_icon_512.png
+  adaptive_icon_background: '#D92028'
+  adaptive_icon_foreground: assets/qj_icon_512.png
 
 flutter:
   uses-material-design: true
@@ -43,5 +52,10 @@ flutter:
     - assets/data_import_classified.json
     - assets/qjmotor_logo_transparent.png
     - assets/adidaya_logo_transparent.png
-    - assets/adidaya_icon_512.png
+    - assets/qj_logo_white.png
+    - assets/qj_header_logo.png
+    - assets/qj_header_logo_light.png
+    - assets/qj_icon_512.png
+    - assets/qj_icon_192.png
+    - assets/qj_icon_maskable_512.png
     - assets/qjmotor_icon.png

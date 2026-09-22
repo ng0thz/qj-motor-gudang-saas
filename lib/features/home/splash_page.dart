@@ -70,20 +70,23 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
               child: Transform.scale(
                 scale: 0.6 + 0.4 * _logoScale.value,
                 child: Image.asset(
-                  'assets/adidaya_logo_transparent.png',
-                  height: 110,
+                  'assets/qj_logo_white.png',
+                  width: 280,
                   errorBuilder: (_, __, ___) => const Icon(Icons.two_wheeler, color: QjColors.red, size: 90),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 10),
+            Container(width: 56, height: 2, decoration: BoxDecoration(
+              color: QjColors.red, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 14),
             Text(
               _tagline.substring(0, _taglineCount),
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 6,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 7,
               ),
             ),
             const SizedBox(height: 30),
