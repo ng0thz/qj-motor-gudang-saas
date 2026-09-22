@@ -76,15 +76,17 @@ service cloud.firestore {
         allow delete: if isRole("ops_manager");
       }
       match /stock_opnames/{id} {
-        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        // Baca sesi: semua penghitung (multi-HP gabung). Buat sesi: staff/kepala/ops.
+        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow create: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk();
         // Approve (update status) hanya ops_manager
         allow update: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow delete: if isRole("ops_manager");
       }
       match /stock_opnames/{id}/items/{kode} {
-        allow read: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && (tenant() == tenantId);
-        allow write: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        // Input hitung: semua HP terdaftar (kecuali direksi read-only). Tertulis siapa penghitung.
+        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Master FRT (warranty & service): baca semua login, tulis ops
       match /frt_warranty/{id} {

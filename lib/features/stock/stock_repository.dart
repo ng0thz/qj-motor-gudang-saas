@@ -90,6 +90,32 @@ class StockRepository {
     await _fs.doc('spareparts', p.kode).set(p.toMap(), SetOptions(merge: true));
   }
 
+  // Daftarkan part BARU hasil scan kode tak dikenal (gated: canCreatePart).
+  // Stok awal dicatat sebagai movement IN agar ada jejak audit.
+  Future<void> createPart({
+    required String kode, required String nama, String motorType = '',
+    String jenisPart = 'OTHER', String alamat = '', int retail = 0,
+    int minStok = 5, int stokAwal = 0,
+  }) async {
+    final k = kode.trim();
+    if (k.isEmpty) throw ArgumentError('kode kosong');
+    if (nama.trim().isEmpty) throw ArgumentError('nama kosong');
+    final parts = alamat.split('-');
+    final h = Harga(modal: (retail * 0.85).round(), retail: retail);
+    final p = Sparepart(
+      kode: k, nama: nama.trim(), motorType: motorType.trim(),
+      stok: 0, minStok: minStok, alamat: alamat.trim(),
+      rak: parts.length > 1 ? '${parts[0]}-${parts[1]}' : parts.first,
+      bin: parts.length > 3 ? parts.sublist(3).join('-') : '',
+      barcode: k, harga: h, jenisPart: jenisPart,
+      kategori: 'MEDIUM', prioritas: 1, status: 'DRAFT',
+    );
+    await _fs.doc('spareparts', k).set(p.toMap(), SetOptions(merge: false));
+    if (stokAwal > 0) {
+      await addMovement(kode: k, qty: stokAwal, tipe: 'IN', catatan: 'Stok awal pendaftaran via scan');
+    }
+  }
+
   // IN / OUT - tercatat di stock_movements, stok update via Function onCreateStockMovement
   Future<void> addMovement({
     required String kode, required int qty, required String tipe, // IN|OUT|PINDAH|ADJUST|OPNAME
@@ -236,7 +262,23 @@ class StockRepository {
       'kode': kode, 'stokSistem': stokSistem, 'stokFisik': stokFisik, 'selisih': selisih,
       'status': selisih == 0 ? 'COCOK' : (selisih > 0 ? 'LEBIH' : 'KURANG'),
       'countedAt': FieldValue.serverTimestamp(),
-    });
+      'countedBy': _fs.auth.currentUser?.email ?? _fs.auth.currentUser?.uid ?? 'demo',
+    }, SetOptions(merge: true));
+  }
+
+  // Sesi opname aktif untuk GABUNG multi-HP (satu HP mulai, semua HP hitung).
+  Stream<List<Map<String, dynamic>>> watchOpnames() {
+    return _fs.col('stock_opnames')
+        .where('status', whereIn: ['COUNTING', 'REVIEW'])
+        .snapshots()
+        .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  // Progres hitung live (terlihat siapa hitung apa, dari semua HP).
+  Stream<List<Map<String, dynamic>>> watchOpnameItems(String opnameId) {
+    return _fs.col('stock_opnames').doc(opnameId).collection('items')
+        .snapshots()
+        .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
   Future<void> approveOpname({required String opnameId, required bool approve}) async {

@@ -42,4 +42,6 @@ flutter:
     - assets/data_import.json
     - assets/data_import_classified.json
     - assets/qjmotor_logo_transparent.png
+    - assets/adidaya_logo_transparent.png
+    - assets/adidaya_icon_512.png
     - assets/qjmotor_icon.png

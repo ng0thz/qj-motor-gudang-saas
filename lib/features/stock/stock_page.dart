@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'stock_model.dart';
 import 'stock_repository.dart';
 import 'scan_page.dart';
+import 'part_baru_page.dart';
 import 'rack_master.dart';
 import 'rack_picker.dart';
 import 'label_print_page.dart';
@@ -37,7 +38,24 @@ class _StockPageState extends State<StockPage> {
     final part = await repo.getByBarcode(code);
     if (!mounted) return;
     if (part == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tidak ditemukan: $code')));
+      // Kode tak dikenal -> tawarkan pendaftaran part baru (gated role)
+      if (!AuthSession.instance.canCreatePart) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tidak ditemukan: $code (hubungi Staff Gudang untuk daftar baru)')));
+        return;
+      }
+      final daftar = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+        title: const Text('Kode belum terdaftar'),
+        content: Text('"$code" tidak cocok ke part mana pun.\nDaftarkan sebagai part baru?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Daftarkan')),
+        ],
+      ));
+      if (daftar == true && mounted) {
+        await Navigator.push(context, MaterialPageRoute(
+          builder: (_) => PartBaruPage(kodeAwal: code)));
+      }
     } else {
       _showDetail(part);
     }

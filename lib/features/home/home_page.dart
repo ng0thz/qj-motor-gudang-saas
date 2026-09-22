@@ -135,7 +135,7 @@ class _HomePageState extends State<HomePage> {
                     Text('$tgl • Tenant ${s.tenantId}',
                         style: const TextStyle(color: Colors.white70, fontSize: 12)),
                   ])),
-                  Image.asset('assets/qjmotor_logo_transparent.png', height: 56,
+                  Image.asset('assets/adidaya_logo_transparent.png', height: 56,
                       errorBuilder: (_, __, ___) =>
                           const Icon(Icons.two_wheeler, color: QjColors.red, size: 48)),
                 ]),

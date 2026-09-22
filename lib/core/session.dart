@@ -19,6 +19,17 @@ class AuthSession {
   bool get canApprove => isOps;
   bool get canManageMaster => isStaff; // spareparts, rak, barcode, harga
   bool get canTransact => role == 'staff_gudang' || role == 'frontdesk' || role == 'kepala_mekanik' || isOps;
+  // Daftarkan kode/part BARU via scan: hanya pengelola master (gudang + ops).
+  bool get canCreatePart => isStaff;
+  // Input hitung opname via scan: SEMUA HP terdaftar boleh (kecuali direksi read-only).
+  // Buat sesi opname: staff/kepala/ops. Approve: ops saja.
+  static const counterRoles = [
+    'staff_gudang', 'frontdesk', 'kepala_mekanik', 'mekanik',
+    'admin_sales', 'ops_manager', 'super_admin',
+  ];
+  bool get canCountOpname => isLoggedIn && counterRoles.contains(role);
+  bool get canStartOpname => isLoggedIn &&
+      (role == 'staff_gudang' || role == 'kepala_mekanik' || isOps);
 
   void clear() {
     tenantId = 'qj-motor';

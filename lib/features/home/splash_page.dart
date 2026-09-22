@@ -70,7 +70,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
               child: Transform.scale(
                 scale: 0.6 + 0.4 * _logoScale.value,
                 child: Image.asset(
-                  'assets/qjmotor_logo_transparent.png',
+                  'assets/adidaya_logo_transparent.png',
                   height: 110,
                   errorBuilder: (_, __, ___) => const Icon(Icons.two_wheeler, color: QjColors.red, size: 90),
                 ),

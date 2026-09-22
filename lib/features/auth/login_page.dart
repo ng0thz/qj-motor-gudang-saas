@@ -65,7 +65,7 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1B2A4A),
       body: Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(children: [
-        Image.asset('assets/qjmotor_logo_transparent.png', height: 72,
+        Image.asset('assets/adidaya_logo_transparent.png', height: 72,
           errorBuilder: (_, __, ___) => const Icon(Icons.build, color: Colors.white, size: 56)),
         const SizedBox(height: 12),
         const Text('QJ Motor', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
