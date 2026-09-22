@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
 import 'core/qj_theme.dart';
 import 'features/auth/auth_gate.dart';
@@ -9,6 +10,8 @@ import 'features/home/splash_page.dart';
 // Hanya serviceAccountKey.json yang rahasia dan tetap di-gitignore.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Wajib sebelum DateFormat(..., 'id_ID') dipakai (home_page dkk).
+  await initializeDateFormatting('id_ID');
   bool firebaseOk = true;
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
