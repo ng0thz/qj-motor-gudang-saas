@@ -28,6 +28,7 @@ class AuthSession {
     'admin_sales', 'ops_manager', 'super_admin',
   ];
   bool get canCountOpname => isLoggedIn && counterRoles.contains(role);
+  bool get canStandby => isLoggedIn && counterRoles.contains(role);
   bool get canStartOpname => isLoggedIn &&
       (role == 'staff_gudang' || role == 'kepala_mekanik' || isOps);
 

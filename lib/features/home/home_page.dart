@@ -16,6 +16,7 @@ import '../stock/stock_repository.dart';
 import '../stock/workorder_page.dart';
 import '../stock/workorder_track_page.dart';
 import '../stock/pdi_booking_page.dart';
+import '../standby/standby_page.dart';
 import '../users/users_page.dart';
 
 // Landing home QJ Motor: hero + statistik live + menu animasi.
@@ -65,6 +66,8 @@ class _HomePageState extends State<HomePage> {
       ['Stok & Scan', 'Cari, scan, IN/OUT', Icons.qr_code_scanner, [const Color(0xFFE1251B), const Color(0xFFB3120F)], const StockPage()],
       ['Work Order', 'FRT jasa otomatis', Icons.build, [const Color(0xFF1B2A4A), const Color(0xFF2E4A7A)], const WorkOrderPage()],
       ['Tracking', 'Riwayat per nopol', Icons.manage_search, [const Color(0xFF0E7C5B), const Color(0xFF0A5C44)], const WorkOrderTrackPage()],
+      if (s.canStandby)
+        ['Standby PDI', 'Rotasi + SK + pit', Icons.event_available, [const Color(0xFF1E3A8A), const Color(0xFF3B82F6)], const StandbyPage()],
       if (s.canBookPDI && kIsWeb)
         ['Booking PDI', 'Jadwal unit baru (Web)', Icons.event_available, [const Color(0xFFDB2777), const Color(0xFF9D174D)], const PdiBookingPage()],
       ['Closing Harian', 'Laporan A–F + WA', Icons.assessment, [const Color(0xFF7C3AED), const Color(0xFF5B21B6)], const ClosingReportPage()],

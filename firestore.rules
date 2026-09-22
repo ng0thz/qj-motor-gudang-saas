@@ -99,6 +99,11 @@ service cloud.firestore {
         allow read: if isSignedIn() && (tenant() == tenantId);
         allow write: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
+      // Standby ambil PDI harian: baca semua login, tulis peran bengkel+sales+ops.
+      match /standby_harian/{tgl} {
+        allow read: if isSignedIn() && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+      }
       // Direktori tim (nama + peran + aktif): dibaca semua login untuk
       // dropdown mekanik, ditulis hanya ops. Disinkron dari Kelola User.
       match /team/{uid} {
