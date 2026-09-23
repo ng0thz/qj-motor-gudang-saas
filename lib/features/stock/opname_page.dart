@@ -3,6 +3,7 @@ import 'stock_repository.dart';
 import 'stock_model.dart';
 import 'scan_page.dart';
 import 'part_baru_page.dart';
+import 'opname_report_page.dart';
 import '../../core/session.dart';
 
 // Opname: MULAI/GABUNG SESI -> HITUNG via scan (multi-HP) -> REVIEW -> APPROVED.
@@ -213,6 +214,13 @@ class _OpnamePageState extends State<OpnamePage> {
   Widget _lobby(AuthSession s) {
     return Padding(padding: const EdgeInsets.all(12), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Align(alignment: Alignment.centerRight, child: OutlinedButton.icon(
+          icon: const Icon(Icons.assignment, size: 16),
+          label: const Text('Riwayat & Report'),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => const OpnameReportPage())),
+        )),
+        const SizedBox(height: 8),
         const Text('1) Mulai sesi baru (Staff / Kepala Mekanik / Ops)',
           style: TextStyle(fontWeight: FontWeight.bold)),
         Row(children: [
@@ -254,6 +262,15 @@ class _OpnamePageState extends State<OpnamePage> {
 
   Widget _counting(AuthSession s) {
     return Column(children: [
+      Align(alignment: Alignment.centerRight, child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.receipt_long, size: 16),
+          label: const Text('Report sesi ini'),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => OpnameDetailPage(opnameId: opnameId!))),
+        ),
+      )),
       Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: const Color(0xFF1B2A4A),
         child: StreamBuilder<List<Map<String, dynamic>>>(

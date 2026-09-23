@@ -281,6 +281,25 @@ class StockRepository {
         .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
+  // Riwayat opname untuk Report (semua status, terbaru dulu).
+  Stream<List<Map<String, dynamic>>> watchOpnameHistory({int limit = 30}) {
+    return _fs.col('stock_opnames').orderBy('createdAt', descending: true).limit(limit)
+        .snapshots().map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+  }
+
+  Future<Map<String, dynamic>?> fetchOpname(String id) async {
+    final d = await _fs.col('stock_opnames').doc(id).get();
+    if (!d.exists) return null;
+    return {'id': d.id, ...d.data()!};
+  }
+
+  Future<List<Map<String, dynamic>>> fetchOpnameItems(String opnameId) async {
+    final s = await _fs.col('stock_opnames').doc(opnameId).collection('items').get();
+    final list = s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    list.sort((a, b) => '${a['kode']}'.compareTo('${b['kode']}'));
+    return list;
+  }
+
   Future<void> approveOpname({required String opnameId, required bool approve}) async {
     final items = await _fs.col('stock_opnames').doc(opnameId).collection('items').get();
     final batch = _fs.db.batch();
