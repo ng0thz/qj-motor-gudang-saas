@@ -5,6 +5,7 @@ import '../../core/auth_service.dart';
 import '../../core/session.dart';
 import '../../core/qj_theme.dart';
 import '../../core/qj_anim.dart';
+import '../standby/standby_repository.dart';
 import '../stock/alert_po_page.dart';
 import '../stock/closing_report_page.dart';
 import '../stock/dashboard_page.dart';
@@ -168,7 +169,10 @@ class _HomePageState extends State<HomePage> {
                           const Icon(Icons.two_wheeler, color: Colors.white, size: 48)),
                 ]),
               ),
-              const SizedBox(height: 14),
+              // BANNER STANDBY PDI (mekanik) + PIL kebersihan 17:30
+              if (s.canStandby) _StandbyBanner(email: s.email),
+              if (s.canStandby) const SizedBox(height: 10),
+              const SizedBox(height: 4),
               // STATS
               Builder(builder: (c2) {
                 final isDash = stats['sku'] == '—';
@@ -192,28 +196,35 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 14),
               const Text('Menu Operasional', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: QjColors.text)),
               const SizedBox(height: 10),
-              // MENU GRID animasi staggered
-              GridView.count(
-                crossAxisCount: cols,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.05,
-                children: List.generate(menus.length, (i) {
-                  final m = menus[i];
-                  return StaggerIn(
-                    index: i,
-                    child: QjMenuCard(
+              // MENU GRID animasi staggered (+ badge di Standby PDI)
+              Builder(builder: (c2) {
+                final standbyIdx = menus.indexWhere((m) => m[0] == 'Standby PDI');
+                return GridView.count(
+                  crossAxisCount: cols,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1.05,
+                  children: List.generate(menus.length, (i) {
+                    final m = menus[i];
+                    final card = QjMenuCard(
                       title: m[0] as String,
                       subtitle: m[1] as String,
                       icon: m[2] as IconData,
                       gradient: (m[3] as List<Color>),
                       onTap: () => _go(m[4] as Widget),
-                    ),
-                  );
-                }),
-              ),
+                    );
+                    if (i == standbyIdx && s.canStandby) {
+                      return StaggerIn(
+                        index: i,
+                        child: _StandbyBadgeWrapper(email: s.email, child: card),
+                      );
+                    }
+                    return StaggerIn(index: i, child: card);
+                  }),
+                );
+              }),
               const SizedBox(height: 20),
               Center(child: Image.asset('assets/qj_header_logo_light.png', height: 18,
                 errorBuilder: (_, __, ___) =>
@@ -227,6 +238,151 @@ class _HomePageState extends State<HomePage> {
           ),
         );
       }),
+    );
+  }
+}
+
+// ── Banner Standby di Home ──
+class _StandbyBanner extends StatelessWidget {
+  final String email;
+  const _StandbyBanner({required this.email});
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = StandbyRepo();
+    final key = repo.keyOf(DateTime.now());
+    // Minggu: jangan tampilkan banner.
+    if (DateTime.now().weekday == DateTime.sunday) return const SizedBox.shrink();
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: repo.watchDay(key),
+      builder: (c, snap) {
+        if (!snap.hasData || snap.data == null) return const SizedBox.shrink();
+        final day = snap.data!;
+        final dist = List<Map<String, dynamic>>.from(day['distribusi'] ?? []);
+        final reqs = List<Map<String, dynamic>>.from(day['requests'] ?? []);
+        final selesai = List<String>.from(day['selesai'] ?? []);
+        final pit1 = day['pit1'];
+        final pit2 = day['pit2'];
+
+        // Hitung jatah user hari ini (reguler + request).
+        final myDist = dist.where((d) => '${d['email']}' == email).toList();
+        final myReq = reqs.where((q) => '${q['email']}' == email).toList();
+        final myUnit = myDist.fold<int>(0, (t, d) => t + ((d['unit'] as num?)?.toInt() ?? 0)) +
+            myReq.fold<int>(0, (t, q) => t + ((q['unit'] as num?)?.toInt() ?? 0));
+        final isSelesai = selesai.contains(email);
+        final isSK = myUnit == 0 && dist.isNotEmpty;
+        // Pit milik user.
+        final inPit1 = StandbyMath.pit1.contains(email);
+        final inPit2 = StandbyMath.pit2.contains(email);
+        final pitDone = (inPit1 && pit1 != null) || (inPit2 && pit2 != null);
+        final lewat1730 = DateTime.now().hour > 17 || (DateTime.now().hour == 17 && DateTime.now().minute >= 30);
+
+        // Prioritas banner: pit telat > PDI belum selesai > SK.
+        if (!pitDone && lewat1730 && (inPit1 || inPit2)) {
+          final pitNo = inPit1 ? 1 : 2;
+          return _bannerCard(
+            color: const Color(0xFFDC2626), icon: Icons.cleaning_services,
+            title: 'Pit $pitNo belum dibersihkan!',
+            subtitle: 'Sudah 17:30 — tap untuk check-off kebersihan.',
+            action: 'Buka Standby',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StandbyPage())),
+          );
+        }
+        if (myUnit > 0 && !isSelesai) {
+          return _bannerCard(
+            color: QjColors.red, icon: Icons.assignment_late,
+            title: 'Anda standby $myUnit unit PDI hari ini',
+            subtitle: 'Tap untuk selesaikan — hutang/tabungan diperbarui otomatis.',
+            action: 'Kerjakan',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StandbyPage())),
+          );
+        }
+        if (myUnit > 0 && isSelesai) {
+          return _bannerCard(
+            color: QjColors.green, icon: Icons.verified,
+            title: 'PDI hari ini selesai \u2713',
+            subtitle: '$myUnit unit — terima kasih!',
+            action: 'Lihat',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StandbyPage())),
+          );
+        }
+        if (isSK) {
+          return _bannerCard(
+            color: const Color(0xFFF59E0B), icon: Icons.moped,
+            title: 'Anda Servis Kunjung hari ini',
+            subtitle: 'Tidak kebagian PDI — standby kunjungan.',
+            action: 'Lihat',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StandbyPage())),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  Widget _bannerCard({required Color color, required IconData icon, required String title, required String subtitle, required String action, required VoidCallback onTap}) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Row(children: [
+        Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: Colors.white, size: 18)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: color)),
+          const SizedBox(height: 2),
+          Text(subtitle, style: const TextStyle(fontSize: 11, color: QjColors.muted)),
+        ])),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          onPressed: onTap, child: Text(action, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+      ]),
+    );
+  }
+}
+
+// Badge merah di pojok kartu Standby PDI.
+class _StandbyBadgeWrapper extends StatelessWidget {
+  final String email;
+  final Widget child;
+  const _StandbyBadgeWrapper({required this.email, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = StandbyRepo();
+    final key = repo.keyOf(DateTime.now());
+    if (DateTime.now().weekday == DateTime.sunday) return child;
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: repo.watchDay(key),
+      builder: (c, snap) {
+        if (!snap.hasData || snap.data == null) return child;
+        final day = snap.data!;
+        final dist = List<Map<String, dynamic>>.from(day['distribusi'] ?? []);
+        final reqs = List<Map<String, dynamic>>.from(day['requests'] ?? []);
+        final selesai = List<String>.from(day['selesai'] ?? []);
+        final myUnit = dist.where((d) => '${d['email']}' == email).fold<int>(0, (t, d) => t + ((d['unit'] as num?)?.toInt() ?? 0)) +
+            reqs.where((q) => '${q['email']}' == email).fold<int>(0, (t, q) => t + ((q['unit'] as num?)?.toInt() ?? 0));
+        if (myUnit == 0 || selesai.contains(email)) return child;
+        return Stack(clipBehavior: Clip.none, children: [
+          child,
+          Positioned(top: -6, right: -6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(color: QjColors.red, borderRadius: BorderRadius.circular(12),
+                boxShadow: [BoxShadow(color: QjColors.red.withOpacity(0.4), blurRadius: 6)]),
+              child: Text('$myUnit', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]);
+      },
     );
   }
 }
