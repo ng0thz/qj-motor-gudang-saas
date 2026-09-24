@@ -19,11 +19,27 @@ class StandbyMath {
   static String keyOf(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  // Rotasi HARI KERJA: Minggu tidak dihitung (OFF semua).
   static int _idx(DateTime? now) {
-    final t = now ?? DateTime.now();
-    final a = DateTime(t.year, t.month, t.day);
+    final t0 = now ?? DateTime.now();
+    final t = DateTime(t0.year, t0.month, t0.day);
     final b = DateTime(anchor.year, anchor.month, anchor.day);
-    var idx = (a.difference(b).inDays) % rotasiEmail.length;
+    if (t.isAtSameMomentAs(b)) return 0;
+    var workdays = 0;
+    if (t.isAfter(b)) {
+      var cur = b.add(const Duration(days: 1));
+      while (!cur.isAfter(t)) {
+        if (cur.weekday != DateTime.sunday) workdays++;
+        cur = cur.add(const Duration(days: 1));
+      }
+    } else {
+      var cur = t;
+      while (cur.isBefore(b)) {
+        if (cur.weekday != DateTime.sunday) workdays--;
+        cur = cur.add(const Duration(days: 1));
+      }
+    }
+    var idx = workdays % rotasiEmail.length;
     if (idx < 0) idx += rotasiEmail.length;
     return idx;
   }
