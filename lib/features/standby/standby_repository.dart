@@ -290,7 +290,52 @@ class StandbyRepo {
     await batch.commit();
   }
 
-  // Tandai selesai untuk satu mekanik: selesaikan WO rotasi + request miliknya.
+  // Selesai PDI wajib rangka/mesin per WO + verifikasi 2 langkah.
+  // perWo: woId -> {noRangka, noMesin}
+  Future<int> completeMekanikWithRangka({required String key, required String email, required Map<String, Map<String, String>> perWo}) async {
+    var n = 0;
+    // Simpan rangka/mesin dulu (history permanen untuk aftersales tracking).
+    for (final e in perWo.entries) {
+      await _wo.updateWO(e.key, {'noRangka': e.value['noRangka'], 'noMesin': e.value['noMesin']});
+    }
+    final snap = await _doc(key).get();
+    final cur = snap.data() ?? {};
+    final dist = List<Map<String, dynamic>>.from(cur['distribusi'] ?? []);
+    for (final d in dist) {
+      if (d['email'] != email) continue;
+      for (final id in ((d['woIds'] as List?) ?? []).cast<String>()) {
+        if (!perWo.containsKey(id)) continue;
+        final r = await _wo.selesaikanWO(id);
+        if (r == 'ok') n++;
+      }
+    }
+    final reqs = List<Map<String, dynamic>>.from(cur['requests'] ?? []);
+    for (final q in reqs) {
+      if (q['email'] != email) continue;
+      for (final id in ((q['woIds'] as List?) ?? []).cast<String>()) {
+        if (!perWo.containsKey(id)) continue;
+        final r = await _wo.selesaikanWO(id);
+        if (r == 'ok') n++;
+      }
+    }
+    final selesai = List<String>.from(cur['selesai'] ?? []);
+    if (!selesai.contains(email)) selesai.add(email);
+    await _doc(key).set({
+      'selesai': selesai,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return n;
+  }
+
+  Future<void> batalSelesai({required String key, required String email}) async {
+    final snap = await _doc(key).get();
+    final cur = snap.data() ?? {};
+    final selesai = List<String>.from(cur['selesai'] ?? []);
+    selesai.remove(email);
+    await _doc(key).set({'selesai': selesai, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+  }
+
+  // Legacy tanpa rangka (untuk WO non-PDI).
   Future<int> completeMekanik({required String key, required String email}) async {
     final snap = await _doc(key).get();
     final cur = snap.data() ?? {};
@@ -339,6 +384,17 @@ class StandbyRepo {
   }
 
   // Riwayat 30 hari terakhir.
+  // Cari history PDI by rangka/mesin untuk tracking aftersales (siapa mekanik PDI waktu itu).
+  Future<List<Map<String, dynamic>>> searchByRangka(String query) async {
+    final q = query.trim().toUpperCase();
+    if (q.isEmpty) return [];
+    final s = await _fs.col('work_orders').where('kategori', isEqualTo: 'PDI').limit(50).get();
+    final all = s.docs.map((d) => {'id': d.id, ...d.data()}).where((w) =>
+      '${w['noRangka'] ?? ''}'.toUpperCase().contains(q) ||
+      '${w['noMesin'] ?? ''}'.toUpperCase().contains(q)).toList();
+    return all;
+  }
+
   Stream<List<Map<String, dynamic>>> watchHistory() {
     return _fs.col('standby_harian').orderBy('tanggal', descending: true).limit(30).snapshots().map(
       (s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());

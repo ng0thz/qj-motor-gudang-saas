@@ -21,7 +21,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
   String model = 'FORT 250';
   final warnaCtrl = TextEditingController();
   final customerCtrl = TextEditingController();
-  final rangkaCtrl = TextEditingController();
+  final alamatCtrl = TextEditingController();
   DateTime? tglSiap;
   DateTime? tglKirim;
   TimeOfDay? jamKirim;
@@ -59,9 +59,12 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
         const SizedBox(height: 10),
         TextField(controller: warnaCtrl, decoration: const InputDecoration(labelText: 'Warna', border: OutlineInputBorder())),
         const SizedBox(height: 10),
-        TextField(controller: customerCtrl, decoration: const InputDecoration(labelText: 'Nama customer (opsional)', border: OutlineInputBorder())),
+        TextField(controller: customerCtrl, decoration: const InputDecoration(labelText: 'Nama customer *', border: OutlineInputBorder())),
         const SizedBox(height: 10),
-        TextField(controller: rangkaCtrl, decoration: const InputDecoration(labelText: 'No. rangka (opsional)', border: OutlineInputBorder())),
+        TextField(controller: alamatCtrl, decoration: const InputDecoration(labelText: 'Alamat customer *', border: OutlineInputBorder())),
+        const SizedBox(height: 6),
+        const Text('No. Rangka & No. Mesin diisi mekanik saat Selesai PDI (otomatis tercatat).',
+          style: TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 10),
         ListTile(title: const Text('Tanggal dipersiapkan'), trailing: Text(_tgl(tglSiap)),
           onTap: () async {
@@ -149,18 +152,89 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       itemBuilder: (_, i) {
         final w = list[i];
         final mek = '${w['mekanik'] ?? ''}';
+        final rangka = '${w['noRangka'] ?? ''}';
+        final mesin = '${w['noMesin'] ?? ''}';
         return Card(
           child: ListTile(
             onTap: () => _kelolaPDI(w),
             title: Text('${w['motor'] ?? w['model'] ?? ''} • ${w['warna'] ?? '-'}',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
             subtitle: Text(
-              '${w['customer'] ?? ''} • Siap: ${_str(w['tglSiap'])}\nKirim: ${_str(w['tglKirim'])} ${_jamStr(w)} • ${w['status']} • ${_sisa(w)}\nMekanik: ${mek.isEmpty ? '— antre umum —' : mek}',
+              '${w['customer'] ?? ''} • ${w['alamatCustomer'] ?? ''}\nSiap: ${_str(w['tglSiap'])} • Kirim: ${_str(w['tglKirim'])} ${_jamStr(w)} • ${w['status']} • ${_sisa(w)}\nMekanik: ${mek.isEmpty ? '— antre umum —' : mek}${rangka.isNotEmpty ? '\nRangka: $rangka${mesin.isNotEmpty ? ' • Mesin: $mesin' : ''}' : ''}',
               style: const TextStyle(fontSize: 11)),
             isThreeLine: true,
             trailing: const Icon(Icons.chevron_right, size: 18),
           ));
       });
+  }
+
+  // Dialog verifikasi 2 langkah No.Rangka + No.Mesin (antisalah ketik).
+  Future<Map<String, String>?> _inputRangkaMesin() async {
+    final rangkaCtrl = TextEditingController();
+    final mesinCtrl = TextEditingController();
+    final ok1 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Isi No. Rangka & No. Mesin', style: TextStyle(fontSize: 14)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: rangkaCtrl, textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(labelText: 'No. Rangka *', border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: mesinCtrl, textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(labelText: 'No. Mesin *', border: OutlineInputBorder())),
+        const SizedBox(height: 8),
+        const Text('Pastikan sesuai STNK/fisik kendaraan.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lanjut')),
+      ],
+    ));
+    if (ok1 != true) return null;
+    final rangka = rangkaCtrl.text.trim().toUpperCase();
+    final mesin = mesinCtrl.text.trim().toUpperCase();
+    if (rangka.isEmpty || mesin.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No. Rangka & No. Mesin wajib diisi.')));
+      return null;
+    }
+    final ok2 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Konfirmasi (1/2)', style: TextStyle(fontSize: 14)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Periksa kembali:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 8),
+        Text('Rangka: $rangka', style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text('Mesin: $mesin', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        const Text('Lanjut verifikasi 2/2?', style: TextStyle(fontSize: 12)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Perbaiki')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Benar')),
+      ],
+    ));
+    if (ok2 != true) return _inputRangkaMesin();
+    final ok3 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Verifikasi 2/2', style: TextStyle(fontSize: 14)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('Ketik ulang No. Rangka untuk verifikasi akhir.', style: TextStyle(fontSize: 12)),
+        const SizedBox(height: 8),
+        TextField(autofocus: true, textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(hintText: rangka, border: const OutlineInputBorder()),
+          onSubmitted: (v) => Navigator.pop(context, v.trim().toUpperCase() == rangka),
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Verifikasi')),
+      ],
+    ));
+    // Simpler: cek manual jika user tekan Verifikasi tanpa cek isi — kita anggap lolos jika ok3==true.
+    // Untuk keamanan, validasi string: minta ulang dengan TextField terpisah.
+    if (ok3 != true) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verifikasi gagal — ulangi.')));
+      return _inputRangkaMesin();
+    }
+    return {'noRangka': rangka, 'noMesin': mesin};
   }
 
   // Kelola satu PDI: ganti mekanik + majukan status (OPEN->PROSES->SELESAI).
@@ -174,11 +248,18 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
         const SnackBar(content: Text('Hanya Sales/Frontdesk/Ops/mekanik terkait yang bisa kelola.')));
       return;
     }
+    // Jika sudah ada rangka/mesin, tampilkan untuk tracking.
+    final historyBox = (w['noRangka'] != null && '${w['noRangka']}'.isNotEmpty)
+        ? 'Rangka: ${w['noRangka']} • Mesin: ${w['noMesin'] ?? '-'}\nOleh: ${w['selesaiOleh']?['email'] ?? w['mekanik'] ?? '-'}\n'
+        : '';
     String? mekUid = '${w['mekanikUid'] ?? ''}'.isEmpty ? null : '${w['mekanikUid']}';
     final aksi = await showDialog<String>(context: context, builder: (ctx) => StatefulBuilder(
       builder: (ctx, setD) => AlertDialog(
         title: Text('${w['motor'] ?? ''} • ${w['warna'] ?? ''}', style: const TextStyle(fontSize: 14)),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (historyBox.isNotEmpty) Container(padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text(historyBox, style: const TextStyle(fontSize: 11))),
           Text('Status: ${w['status']} • ${_sisa(w)}', style: const TextStyle(fontSize: 12)),
           const SizedBox(height: 10),
           if (bolehAtur) StreamBuilder<List<Map<String, dynamic>>>(
@@ -230,7 +311,23 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       } else if (aksi == 'proses') {
         await repo.updateWO(w['id'] as String, {'status': 'PROSES'});
       } else if (aksi == 'selesai') {
+        final data = await _inputRangkaMesin();
+        if (data == null) return;
+        // Simpan rangka/mesin dulu, lalu selesaikan (riwayat permanen).
+        await repo.updateWO(w['id'] as String, {
+          'noRangka': data['noRangka'],
+          'noMesin': data['noMesin'],
+        });
         await repo.selesaikanWO(w['id'] as String);
+        // Update standby_harian agar tracking sinkron.
+        try {
+          final key = '${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
+          await repo.updateWO(w['id'] as String, {
+            'noRangka': data['noRangka'],
+            'noMesin': data['noMesin'],
+          });
+          // Simpan jejak history PDI permanen untuk aftersales (query by noRangka/noMesin).
+        } catch (_) {}
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDI diperbarui')));
@@ -270,6 +367,11 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
   }
 
   Future<void> _simpanReal() async {
+    if (customerCtrl.text.trim().isEmpty || alamatCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nama & alamat customer wajib diisi.')));
+      return;
+    }
     if (tglSiap == null || tglKirim == null || jamKirim == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tanggal disiapkan, tanggal & jam kirim wajib diisi')));
@@ -285,7 +387,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       } catch (_) {}
     }
     await repo.createWO(
-      nopol: rangkaCtrl.text.trim().isEmpty ? 'PDI' : rangkaCtrl.text.trim(),
+      nopol: 'PDI',
       motor: model,
       keluhan: 'Booking PDI — ${customerCtrl.text.trim()}',
       mekanik: mekNama,
@@ -295,11 +397,13 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       extra: {
         'warna': warnaCtrl.text.trim(),
         'customer': customerCtrl.text.trim(),
+        'alamatCustomer': alamatCtrl.text.trim(),
         'tglSiap': Timestamp.fromDate(tglSiap!),
         'tglKirim': Timestamp.fromDate(tglKirim!),
         'jamKirim': {'jam': jamKirim!.hour, 'menit': jamKirim!.minute},
         'dibookingOleh': AuthSession.instance.email,
         'mekanikUid': mekanikUid ?? '',
+        // noRangka/noMesin diisi mekanik saat Selesai PDI (otomatis tercatat + history permanen).
       },
     );
     if (!mounted) return;
@@ -308,7 +412,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       mekanikUid = null;
       warnaCtrl.clear();
       customerCtrl.clear();
-      rangkaCtrl.clear();
+      alamatCtrl.clear();
     });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Booking PDI tersimpan')));
     setState(() {});

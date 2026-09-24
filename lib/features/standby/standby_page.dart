@@ -369,11 +369,121 @@ class _StandbyPageState extends State<StandbyPage> {
     }
   }
 
-  Future<void> _complete(String email) async {
-    try {
-      final n = await repo.completeMekanik(key: _key, email: email);
+  Future<Map<String, String>?> _inputRangkaMesinPerUnit(String nama) async {
+    final rangkaCtrl = TextEditingController();
+    final mesinCtrl = TextEditingController();
+    final ok1 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: Text('Selesai PDI — $nama', style: const TextStyle(fontSize: 14)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: rangkaCtrl, textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(labelText: 'No. Rangka *', border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: mesinCtrl, textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(labelText: 'No. Mesin *', border: OutlineInputBorder())),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lanjut')),
+      ],
+    ));
+    if (ok1 != true) return null;
+    final rangka = rangkaCtrl.text.trim().toUpperCase();
+    final mesin = mesinCtrl.text.trim().toUpperCase();
+    if (rangka.isEmpty || mesin.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(n > 0 ? '✅ $n WO selesai' : 'Sudah selesai / tidak ada WO')));
+        const SnackBar(content: Text('Rangka & Mesin wajib diisi.')));
+      return _inputRangkaMesinPerUnit(nama);
+    }
+    final ok2 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Konfirmasi 1/2', style: TextStyle(fontSize: 14)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Rangka: $rangka', style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text('Mesin: $mesin', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        const Text('Sudah benar?', style: TextStyle(fontSize: 12, color: Colors.grey)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Perbaiki')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Benar')),
+      ],
+    ));
+    if (ok2 != true) return _inputRangkaMesinPerUnit(nama);
+    // Verifikasi 2/2: ketik ulang rangka untuk cegah typo.
+    final verifyCtrl = TextEditingController();
+    final ok3 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Verifikasi 2/2', style: TextStyle(fontSize: 14)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('Ketik ulang No. Rangka:', style: TextStyle(fontSize: 12)),
+        const SizedBox(height: 8),
+        TextField(controller: verifyCtrl, autofocus: true, textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(hintText: rangka, border: const OutlineInputBorder())),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () {
+          final v = verifyCtrl.text.trim().toUpperCase();
+          Navigator.pop(context, v == rangka);
+        }, child: const Text('Verifikasi')),
+      ],
+    ));
+    if (ok3 != true) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verifikasi gagal — ulangi.')));
+      return _inputRangkaMesinPerUnit(nama);
+    }
+    return {'noRangka': rangka, 'noMesin': mesin};
+  }
+
+  Future<void> _complete(String email) async {
+    // Ambil daftar WO untuk mekanik ini.
+    final snap = await repo.watchDay(_key).first;
+    if (snap == null) return;
+    final dist = List<Map<String, dynamic>>.from(snap['distribusi'] ?? []);
+    final reqs = List<Map<String, dynamic>>.from(snap['requests'] ?? []);
+    final woIds = <String>[];
+    for (final d in dist.where((e) => '${e['email']}' == email)) {
+      woIds.addAll(((d['woIds'] as List?) ?? []).cast<String>());
+    }
+    for (final q in reqs.where((e) => '${e['email']}' == email)) {
+      woIds.addAll(((q['woIds'] as List?) ?? []).cast<String>());
+    }
+    if (woIds.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada WO PDI untuk diselesaikan.')));
+      return;
+    }
+    // Jika sudah selesai, batal.
+    final selesai = List<String>.from(snap['selesai'] ?? []);
+    if (selesai.contains(email)) {
+      // Batal selesai: tidak butuh rangka/mesin.
+      try {
+        await repo.batalSelesai(key: _key, email: email);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dibatalkan.')));
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+      }
+      return;
+    }
+    // Untuk tiap WO, wajib isi rangka/mesin + verifikasi.
+    final perWo = <String, Map<String, String>>{};
+    for (final id in woIds) {
+      // Cek status WO: skip yang sudah SELESAI (idempoten).
+      try {
+        final wo = await woRepo.streamWODoc(id).first;
+        if (wo.data()?['status'] == 'SELESAI') continue;
+      } catch (_) {}
+      final data = await _inputRangkaMesinPerUnit(email.split('@').first);
+      if (data == null) return; // batal keseluruhan
+      perWo[id] = data;
+    }
+    if (perWo.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Semua WO sudah selesai.')));
+      return;
+    }
+    try {
+      final n = await repo.completeMekanikWithRangka(key: _key, email: email, perWo: perWo);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✅ $n PDI selesai — rangka/mesin tercatat')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
     }
