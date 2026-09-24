@@ -68,18 +68,32 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
         const SizedBox(height: 10),
         ListTile(title: const Text('Tanggal dipersiapkan'), trailing: Text(_tgl(tglSiap)),
           onTap: () async {
-            final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 90)));
-            if (d != null) setState(() => tglSiap = d);
+            try {
+              final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 90)));
+              if (d != null && mounted) setState(() => tglSiap = d);
+            } catch (_) {
+              // Safari fallback: manual input
+              if (mounted) _manualDateInput('Tanggal dipersiapkan', (d) => setState(() => tglSiap = d));
+            }
           }),
         ListTile(title: const Text('Tanggal pengiriman'), trailing: Text(_tgl(tglKirim)),
           onTap: () async {
-            final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 90)));
-            if (d != null) setState(() => tglKirim = d);
+            try {
+              final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 90)));
+              if (d != null && mounted) setState(() => tglKirim = d);
+            } catch (_) {
+              if (mounted) _manualDateInput('Tanggal pengiriman', (d) => setState(() => tglKirim = d));
+            }
           }),
         ListTile(title: const Text('Jam pengiriman'), trailing: Text(_jam(jamKirim)),
           onTap: () async {
-            final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-            if (t != null) setState(() => jamKirim = t);
+            try {
+              final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+              if (t != null && mounted) setState(() => jamKirim = t);
+            } catch (_) {
+              // Safari fallback
+              if (mounted) _manualTimeInput();
+            }
           }),
         const SizedBox(height: 10),
         // Request ke mekanik tertentu (opsional — kosong = antre umum diambil siapa saja)
@@ -366,14 +380,64 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
     return '';
   }
 
+  // Safari fallback: input tanggal manual.
+  Future<void> _manualDateInput(String label, Function(DateTime) onPick) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: Text(label, style: const TextStyle(fontSize: 14)),
+      content: TextField(controller: ctrl, keyboardType: TextInputType.datetime,
+        decoration: const InputDecoration(hintText: 'dd/mm/yyyy', border: OutlineInputBorder())),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('OK')),
+      ],
+    ));
+    if (ok == true) {
+      try {
+        final parts = ctrl.text.trim().split('/');
+        if (parts.length == 3) {
+          final d = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+          if (mounted) onPick(d);
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Safari fallback: input jam manual.
+  Future<void> _manualTimeInput() async {
+    final jamCtrl = TextEditingController();
+    final menitCtrl = TextEditingController(text: '00');
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Jam pengiriman', style: TextStyle(fontSize: 14)),
+      content: Row(children: [
+        SizedBox(width: 60, child: TextField(controller: jamCtrl, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: 'HH', border: OutlineInputBorder()))),
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text(':')),
+        SizedBox(width: 60, child: TextField(controller: menitCtrl, keyboardType: TextInputType.number,
+          decoration: const InputDecoration(hintText: 'mm', border: OutlineInputBorder()))),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('OK')),
+      ],
+    ));
+    if (ok == true) {
+      final h = int.tryParse(jamCtrl.text.trim()) ?? 0;
+      final m = int.tryParse(menitCtrl.text.trim()) ?? 0;
+      if (h >= 0 && h < 24 && m >= 0 && m < 60 && mounted) {
+        setState(() => jamKirim = TimeOfDay(hour: h, minute: m));
+      }
+    }
+  }
+
   Future<void> _simpanReal() async {
     if (customerCtrl.text.trim().isEmpty || alamatCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nama & alamat customer wajib diisi.')));
       return;
     }
     if (tglSiap == null || tglKirim == null || jamKirim == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tanggal disiapkan, tanggal & jam kirim wajib diisi')));
       return;
     }
@@ -414,7 +478,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       customerCtrl.clear();
       alamatCtrl.clear();
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Booking PDI tersimpan')));
-    setState(() {});
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Booking PDI tersimpan')));
+    if (mounted) setState(() {});
   }
 }

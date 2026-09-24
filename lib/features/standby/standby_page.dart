@@ -170,6 +170,9 @@ class _StandbyPageState extends State<StandbyPage> {
               ])));
             }).toList()),
       const SizedBox(height: 10),
+      // Monitoring PDI real-time (langsung dari work_orders, bukan standby_harian).
+      _monitoringPDI(),
+      const SizedBox(height: 10),
       _sectionHead('🟢 KEBERSIHAN PIT — SORE', 'Senin–Sabtu', const Color(0xFF16A34A)),
       _pitCard(1, day, names, s),
       _pitCard(2, day, names, s),
@@ -594,6 +597,71 @@ class _StandbyPageState extends State<StandbyPage> {
       child: Text(parts.isEmpty ? 'Saldo tabungan/hutang: —' : 'Saldo: ${parts.join(' • ')}',
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12,
           color: Color(0xFF1E3A8A)))));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MONITORING PDI — real-time dari work_orders (sinkron dengan Booking PDI)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _monitoringPDI() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: woRepo.watchWO(),
+      builder: (c, snap) {
+        if (!snap.hasData) return const SizedBox.shrink();
+        final all = snap.data!.where((w) => '${w['kategori']}' == 'PDI').toList();
+        final antre = all.where((w) => '${w['status']}' != 'SELESAI' && '${w['status']}' != 'BATAL').toList();
+        final selesai = all.where((w) => '${w['status']}' == 'SELESAI').toList();
+        return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.monitor_heart, color: Color(0xFF1E3A8A), size: 18),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Monitoring PDI', style: TextStyle(
+              fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)))),
+            Chip(label: Text('${antre.length} antre'),
+              visualDensity: VisualDensity.compact, backgroundColor: Colors.orange.shade100,
+              labelStyle: const TextStyle(fontSize: 10)),
+            const SizedBox(width: 4),
+            Chip(label: Text('${selesai.length} selesai'),
+              visualDensity: VisualDensity.compact, backgroundColor: Colors.green.shade100,
+              labelStyle: const TextStyle(fontSize: 10)),
+          ]),
+          const SizedBox(height: 8),
+          if (all.isEmpty)
+            const Text('Belum ada PDI terdaftar.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ...antre.take(5).map((w) => _pdiItem(w, false)),
+          ...selesai.take(3).map((w) => _pdiItem(w, true)),
+          if (antre.length > 5 || selesai.length > 3)
+            Padding(padding: const EdgeInsets.only(top: 4),
+              child: Text('... dan ${antre.length > 5 ? antre.length - 5 : 0}${selesai.length > 3 ? ' + ${selesai.length - 3}' : ''} lainnya',
+                style: const TextStyle(fontSize: 10, color: Colors.grey))),
+        ])));
+      },
+    );
+  }
+
+  Widget _pdiItem(Map<String, dynamic> w, bool isDone) {
+    final motor = '${w['motor'] ?? w['model'] ?? ''}';
+    final customer = '${(w['extra'] as Map?)?['customer'] ?? ''}';
+    final mekanik = '${w['mekanik'] ?? ''}';
+    final nopol = '${w['nopol'] ?? ''}';
+    final status = '${w['status'] ?? ''}';
+    final durasi = (w['durasiMenit'] as num?)?.toInt();
+    final rangka = '${w['noRangka'] ?? ''}';
+    final mesin = '${w['noMesin'] ?? ''}';
+    return ListTile(
+      dense: true,
+      leading: Icon(isDone ? Icons.check_circle : Icons.pending,
+        color: isDone ? Colors.green : Colors.orange, size: 20),
+      title: Text('$motor • ${customer.isNotEmpty ? customer : nopol}',
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+      subtitle: Text(
+        '$status${mekanik.isNotEmpty ? ' • $mekanik' : ''}'
+        '${durasi != null ? ' • ${durasi}m' : ''}'
+        '${rangka.isNotEmpty ? '\nR: $rangka | M: $mesin' : ''}',
+        style: const TextStyle(fontSize: 10)),
+      isThreeLine: rangka.isNotEmpty,
+    );
   }
 
   String _jam(dynamic ts) {
