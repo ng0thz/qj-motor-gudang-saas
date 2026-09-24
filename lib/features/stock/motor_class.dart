@@ -14,6 +14,7 @@ const List<MotorInfo> motorMaster = [
   MotorInfo('SRV 200', 'KECIL', 200),
   MotorInfo('FORT 250', 'MEDIUM', 250),
   MotorInfo('FORT 250 ADV', 'MEDIUM', 250),
+  MotorInfo('FORT 250 R - PRO', 'MEDIUM', 250),
   MotorInfo('SRV 250 AMT', 'MEDIUM', 250),
   MotorInfo('SRV 250 LIBERO', 'MEDIUM', 250),
   MotorInfo('TOURINO 250 DX', 'MEDIUM', 250),

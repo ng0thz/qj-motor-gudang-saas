@@ -4,9 +4,6 @@ import '../../core/session.dart';
 import '../stock/stock_repository.dart';
 import 'standby_repository.dart';
 
-// Papan Standby Ambil PDI (multi-HP + TV bengkel).
-// Rotasi D->A->B->C, tabungan, hutang request, SK, pit, history.
-// Selesai di papan = selesaikan WO yang ditempel (satu sumber kebenaran).
 class StandbyPage extends StatefulWidget {
   const StandbyPage({super.key});
   @override
@@ -17,6 +14,8 @@ class _StandbyPageState extends State<StandbyPage> {
   final repo = StandbyRepo();
   final woRepo = StockRepository();
   bool _reminderShown = false;
+  bool _notifShown = false;
+  final Map<String, Map<String, dynamic>> _woCache = {};
 
   bool get _isMinggu => DateTime.now().weekday == DateTime.sunday;
   String get _key => repo.keyOf(DateTime.now());
@@ -108,9 +107,24 @@ class _StandbyPageState extends State<StandbyPage> {
     final distEmails = dist.map((d) => '${d['email']}').toSet();
     final skEmails = StandbyRepo.rotasiEmail.where((e) => !distEmails.contains(e)).toList();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeRemind(day));
+    // Kumpulkan semua WO IDs untuk fetch status.
+    final allWoIds = <String>{};
+    for (final d in dist) {
+      allWoIds.addAll(((d['woIds'] as List?) ?? []).cast<String>());
+    }
+    for (final q in reqs) {
+      allWoIds.addAll(((q['woIds'] as List?) ?? []).cast<String>());
+    }
+    _loadWOStatuses(allWoIds);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeRemind(day);
+      _maybeNotifyPDI(dist, reqs, me);
+    });
 
     return ListView(padding: const EdgeInsets.all(12), children: [
+      // Notifikasi in-app: PDI baru menunggu diambil.
+      ..._notifBanner(dist, reqs, me, names),
       // HERO utama
       if (dist.isNotEmpty) _hero(s, dist.first, selesai, names, tab, hut, me),
       if (dist.length > 1) ...[
@@ -166,6 +180,184 @@ class _StandbyPageState extends State<StandbyPage> {
     ]);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IN-APP NOTIFICATION (gratis, tanpa FCM/Blaze)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _loadWOStatuses(Set<String> ids) async {
+    for (final id in ids) {
+      if (_woCache.containsKey(id)) continue;
+      try {
+        final snap = await woRepo.streamWODoc(id).first;
+        if (snap.exists && snap.data() != null) {
+          _woCache[id] = snap.data()!;
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _maybeNotifyPDI(List<Map<String, dynamic>> dist, List<Map<String, dynamic>> reqs, String me) {
+    if (_notifShown || !mounted) return;
+    // Cari WO OPEN yang ditugaskan ke saya.
+    final myOpenWo = <String>[];
+    for (final d in dist) {
+      if ('${d['email']}' != me) continue;
+      for (final id in ((d['woIds'] as List?) ?? []).cast<String>()) {
+        final wo = _woCache[id];
+        if (wo != null && '${wo['status']}'.toUpperCase() == 'OPEN') {
+          myOpenWo.add(id);
+        }
+      }
+    }
+    for (final q in reqs) {
+      if ('${q['email']}' != me) continue;
+      for (final id in ((q['woIds'] as List?) ?? []).cast<String>()) {
+        final wo = _woCache[id];
+        if (wo != null && '${wo['status']}'.toUpperCase() == 'OPEN') {
+          myOpenWo.add(id);
+        }
+      }
+    }
+    if (myOpenWo.isEmpty) return;
+    _notifShown = true;
+    // Tampilkan dialog notifikasi in-app.
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('📥 PDI Baru untuk Anda!', style: TextStyle(color: Color(0xFFDC2626))),
+      content: Text('Anda memiliki ${myOpenWo.length} unit PDI yang menunggu diambil.\n\n'
+        'Tekan tombol "📥 Ambil PDI" untuk memulai pengerjaan.\n'
+        'Durasi pengerjaan akan tercatat otomatis.'),
+      actions: [
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Lihat Papan', style: TextStyle(color: Colors.white))),
+      ],
+    ));
+  }
+
+  List<Widget> _notifBanner(List<Map<String, dynamic>> dist, List<Map<String, dynamic>> reqs,
+      String me, Map<String, String> names) {
+    int openCount = 0;
+    for (final d in dist) {
+      if ('${d['email']}' != me) continue;
+      for (final id in ((d['woIds'] as List?) ?? []).cast<String>()) {
+        final wo = _woCache[id];
+        if (wo != null && '${wo['status']}'.toUpperCase() == 'OPEN') openCount++;
+      }
+    }
+    for (final q in reqs) {
+      if ('${q['email']}' != me) continue;
+      for (final id in ((q['woIds'] as List?) ?? []).cast<String>()) {
+        final wo = _woCache[id];
+        if (wo != null && '${wo['status']}'.toUpperCase() == 'OPEN') openCount++;
+      }
+    }
+    if (openCount == 0) return [];
+    return [
+      Container(padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFFDC2626), Color(0xFFB91C1C)]),
+          borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          const Icon(Icons.notifications_active, color: Colors.white, size: 28),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('📥 $openCount PDI baru menunggu diambil!',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 2),
+            Text('Tap tombol "Ambil PDI" di kartu Anda untuk mulai.',
+              style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 12)),
+          ])),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            child: Text('$openCount', style: const TextStyle(color: Color(0xFFDC2626),
+              fontWeight: FontWeight.bold, fontSize: 18))),
+        ])),
+      const SizedBox(height: 10),
+    ];
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AMBIL PDI + DURASI
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _ambilPDI(List<String> woIds) async {
+    if (woIds.isEmpty) return;
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('📥 Ambil PDI', style: TextStyle(color: Color(0xFF1E3A8A))),
+      content: Text('Ambil ${woIds.length} unit PDI?\n\n'
+        'Durasi pengerjaan mulai dihitung sekarang.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A)),
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('📥 Ambil Sekarang', style: TextStyle(color: Colors.white))),
+      ],
+    ));
+    if (ok != true || !mounted) return;
+    var n = 0;
+    for (final id in woIds) {
+      try {
+        final r = await woRepo.ambilPDI(id);
+        if (r == 'ok') n++;
+      } catch (_) {}
+    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(n > 0 ? '✅ $n PDI diambil — durasi mulai dihitung' : 'Sudah diambil sebelumnya')));
+  }
+
+  String _durasiStr(Map<String, dynamic>? wo) {
+    if (wo == null) return '';
+    final ambilAt = wo['ambilAt'];
+    if (ambilAt == null) return '';
+    try {
+      final ambilDt = (ambilAt as dynamic).toDate() as DateTime;
+      final selesaiAt = wo['selesaiAt'];
+      final endDt = selesaiAt != null ? (selesaiAt as dynamic).toDate() as DateTime : DateTime.now();
+      final menit = endDt.difference(ambilDt).inMinutes;
+      if (menit < 60) return '$menit m';
+      return '${menit ~/ 60}j ${menit % 60}m';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // Ambil semua WO IDs untuk satu email dari distribusi + requests.
+  List<String> _woIdsForEmail(Map<String, dynamic> day, String email) {
+    final dist = List<Map<String, dynamic>>.from(day['distribusi'] ?? []);
+    final reqs = List<Map<String, dynamic>>.from(day['requests'] ?? []);
+    final ids = <String>[];
+    for (final d in dist.where((e) => '${e['email']}' == email)) {
+      ids.addAll(((d['woIds'] as List?) ?? []).cast<String>());
+    }
+    for (final q in reqs.where((e) => '${e['email']}' == email)) {
+      ids.addAll(((q['woIds'] as List?) ?? []).cast<String>());
+    }
+    return ids;
+  }
+
+  // Status gabungan dari semua WO untuk satu mekanik.
+  String _combinedStatus(List<String> woIds) {
+    if (woIds.isEmpty) return 'OPEN';
+    var hasOpen = false;
+    var hasProses = false;
+    for (final id in woIds) {
+      final wo = _woCache[id];
+      if (wo == null) { hasOpen = true; continue; }
+      final st = '${wo['status']}'.toUpperCase();
+      if (st == 'OPEN') hasOpen = true;
+      if (st == 'PROSES') hasProses = true;
+    }
+    if (hasProses) return 'PROSES';
+    if (hasOpen) return 'OPEN';
+    return 'SELESAI';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UI WIDGETS
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Widget _sectionHead(String t, String c, Color col) {
     return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(12)),
@@ -186,32 +378,54 @@ class _StandbyPageState extends State<StandbyPage> {
     final done = selesai.contains(email);
     final unit = (d['unit'] as num?)?.toInt() ?? 0;
     final h = ((hut[email] as num?)?.toInt() ?? 0);
+    final woIds = _woIdsForEmail({'distribusi': [d]}, email);
+    final status = _combinedStatus(woIds);
+    final durasi = _durasiStr(_woCache.isNotEmpty ? _woCache[woIds.firstOrNull ?? ''] : null);
+    final isAmbil = status == 'PROSES';
+
     return Container(padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: done
           ? [const Color(0xFFDCFCE7), const Color(0xFFBBF7D0)]
-          : [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)]),
-        border: Border.all(color: done ? const Color(0xFF16A34A) : const Color(0xFF93C5FD), width: 4),
+          : isAmbil
+            ? [const Color(0xFFFEF3C7), const Color(0xFFFDE68A)]
+            : [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)]),
+        border: Border.all(
+          color: done ? const Color(0xFF16A34A) : isAmbil ? const Color(0xFFF59E0B) : const Color(0xFF93C5FD),
+          width: 4),
         borderRadius: BorderRadius.circular(18)),
       child: Column(children: [
-        CircleAvatar(radius: 40, backgroundColor: done ? const Color(0xFF16A34A) : const Color(0xFF2563EB),
+        CircleAvatar(radius: 40,
+          backgroundColor: done ? const Color(0xFF16A34A) : isAmbil ? const Color(0xFFF59E0B) : const Color(0xFF2563EB),
           child: Text(_nama(names, email)[0].toUpperCase(),
             style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold))),
         const SizedBox(height: 8),
-        Text('${_nama(names, email)}${done ? ' ✅' : ''}',
+        Text('${_nama(names, email)}${done ? ' ✅' : isAmbil ? ' ⏱' : ''}',
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
         Text('$unit unit PDI${d['dariTabungan'] == true ? ' (dari tabungan)' : ''}'
           '${h > 0 ? ' • hutang $h' : ''}',
           style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+        if (durasi.isNotEmpty && isAmbil)
+          Padding(padding: const EdgeInsets.only(top: 4),
+            child: Text('⏱ Durasi: $durasi',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF59E0B), fontSize: 13))),
         const SizedBox(height: 12),
-        if (_bolehSelesai(s, email))
+        if (_bolehSelesai(s, email) && !done && status == 'OPEN')
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: done ? Colors.grey : const Color(0xFF16A34A),
-              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF1E3A8A), foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14)),
+            onPressed: () => _ambilPDI(woIds),
+            child: const Text('📥 Ambil PDI', style: TextStyle(fontSize: 16))),
+        if (_bolehSelesai(s, email) && !done && isAmbil)
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14)),
             onPressed: () => _complete(email),
-            child: Text(done ? '↩ Batal Selesai' : '✓ Selesai PDI', style: const TextStyle(fontSize: 16))),
+            child: const Text('✓ Selesai PDI', style: TextStyle(fontSize: 16))),
+        if (done)
+          const Text('✅ PDI Selesai', style: TextStyle(fontSize: 14, color: Color(0xFF16A34A), fontWeight: FontWeight.bold)),
       ]));
   }
 
@@ -219,20 +433,32 @@ class _StandbyPageState extends State<StandbyPage> {
       Map<String, String> names, String me) {
     final email = '${d['email']}';
     final done = selesai.contains(email);
+    final woIds = _woIdsForEmail({'distribusi': [d]}, email);
+    final status = _combinedStatus(woIds);
+    final durasi = _durasiStr(_woCache.isNotEmpty ? _woCache[woIds.firstOrNull ?? ''] : null);
+    final isAmbil = status == 'PROSES';
+
     return Card(child: ListTile(
-      leading: CircleAvatar(backgroundColor: const Color(0xFFF59E0B),
+      leading: CircleAvatar(
+        backgroundColor: done ? const Color(0xFF16A34A) : isAmbil ? const Color(0xFFF59E0B) : const Color(0xFFF59E0B),
         child: Text(_nama(names, email)[0].toUpperCase(),
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-      title: Text('${_nama(names, email)}${done ? ' ✅' : ''}',
+      title: Text('${_nama(names, email)}${done ? ' ✅' : isAmbil ? ' ⏱' : ''}',
         style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text('${d['unit']} unit PDI${d['dariTabungan'] == true ? ' (dari tabungan)' : ''}'),
+      subtitle: Text('${d['unit']} unit PDI${d['dariTabungan'] == true ? ' (dari tabungan)' : ''}'
+        '${durasi.isNotEmpty && isAmbil ? ' • Durasi: $durasi' : ''}'),
       trailing: _bolehSelesai(s, email)
-          ? ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: done ? Colors.grey : const Color(0xFF16A34A),
-                foregroundColor: Colors.white),
-              onPressed: () => _complete(email),
-              child: Text(done ? '↩ Batal' : '✓ Selesai'))
+          ? (done ? null : (status == 'OPEN'
+              ? ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A), foregroundColor: Colors.white),
+                  onPressed: () => _ambilPDI(woIds),
+                  child: const Text('📥 Ambil'))
+              : ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
+                  onPressed: () => _complete(email),
+                  child: const Text('✓ Selesai'))))
           : null,
     ));
   }
@@ -240,19 +466,30 @@ class _StandbyPageState extends State<StandbyPage> {
   Widget _requestCard(AuthSession s, Map<String, dynamic> q, List<String> selesai,
       Map<String, String> names, String me) {
     final email = '${q['email']}';
+    final woIds = ((q['woIds'] as List?) ?? []).cast<String>();
+    final status = _combinedStatus(woIds);
+    final durasi = _durasiStr(_woCache.isNotEmpty ? _woCache[woIds.firstOrNull ?? ''] : null);
+    final isAmbil = status == 'PROSES';
     return Card(color: const Color(0xFFEDE9FE), child: ListTile(
-      leading: const CircleAvatar(backgroundColor: Color(0xFF7C3AED),
-        child: Icon(Icons.star, color: Colors.white, size: 20)),
-      title: Text('${q['nama'] ?? _nama(names, email)} • ${q['unit']} unit request',
+      leading: CircleAvatar(backgroundColor: const Color(0xFF7C3AED),
+        child: Icon(isAmbil ? Icons.timer : Icons.star, color: Colors.white, size: 20)),
+      title: Text('${q['nama'] ?? _nama(names, email)} • ${q['unit']} unit request'
+        '${isAmbil ? ' ⏱' : ''}',
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-      subtitle: Text('${q['ket'] ?? ''}\n+${q['unit']} hutang tabungan'.trim(),
+      subtitle: Text('${q['ket'] ?? ''}\n+${q['unit']} hutang tabungan'
+        '${durasi.isNotEmpty ? '\n⏱ Durasi: $durasi' : ''}'.trim(),
         style: const TextStyle(fontSize: 11)),
       isThreeLine: true,
       trailing: _bolehSelesai(s, email)
-          ? ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
-              onPressed: () => _complete(email), child: const Text('✓ Selesai'))
+          ? (status == 'OPEN'
+              ? ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A), foregroundColor: Colors.white),
+                  onPressed: () => _ambilPDI(woIds), child: const Text('📥 Ambil'))
+              : ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A), foregroundColor: Colors.white),
+                  onPressed: () => _complete(email), child: const Text('✓ Selesai')))
           : null,
     ));
   }
@@ -361,7 +598,6 @@ class _StandbyPageState extends State<StandbyPage> {
 
   String _jam(dynamic ts) {
     try {
-      // ignore: avoid_dynamic_calls
       final d = (ts as dynamic).toDate() as DateTime;
       return DateFormat('HH:mm').format(d);
     } catch (_) {
@@ -408,7 +644,6 @@ class _StandbyPageState extends State<StandbyPage> {
       ],
     ));
     if (ok2 != true) return _inputRangkaMesinPerUnit(nama);
-    // Verifikasi 2/2: ketik ulang rangka untuk cegah typo.
     final verifyCtrl = TextEditingController();
     final ok3 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       title: const Text('Verifikasi 2/2', style: TextStyle(fontSize: 14)),
@@ -435,7 +670,6 @@ class _StandbyPageState extends State<StandbyPage> {
   }
 
   Future<void> _complete(String email) async {
-    // Ambil daftar WO untuk mekanik ini.
     final snap = await repo.watchDay(_key).first;
     if (snap == null) return;
     final dist = List<Map<String, dynamic>>.from(snap['distribusi'] ?? []);
@@ -452,10 +686,8 @@ class _StandbyPageState extends State<StandbyPage> {
         const SnackBar(content: Text('Tidak ada WO PDI untuk diselesaikan.')));
       return;
     }
-    // Jika sudah selesai, batal.
     final selesai = List<String>.from(snap['selesai'] ?? []);
     if (selesai.contains(email)) {
-      // Batal selesai: tidak butuh rangka/mesin.
       try {
         await repo.batalSelesai(key: _key, email: email);
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dibatalkan.')));
@@ -464,16 +696,14 @@ class _StandbyPageState extends State<StandbyPage> {
       }
       return;
     }
-    // Untuk tiap WO, wajib isi rangka/mesin + verifikasi.
     final perWo = <String, Map<String, String>>{};
     for (final id in woIds) {
-      // Cek status WO: skip yang sudah SELESAI (idempoten).
       try {
         final wo = await woRepo.streamWODoc(id).first;
         if (wo.data()?['status'] == 'SELESAI') continue;
       } catch (_) {}
       final data = await _inputRangkaMesinPerUnit(email.split('@').first);
-      if (data == null) return; // batal keseluruhan
+      if (data == null) return;
       perWo[id] = data;
     }
     if (perWo.isEmpty) {

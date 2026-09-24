@@ -369,6 +369,33 @@ class StockRepository {
     }, SetOptions(merge: true));
   }
 
+  // Mekanik Ambil PDI: OPEN → PROSES + timestamp ambilAt untuk durasi.
+  Future<String> ambilPDI(String id) async {
+    final me = _fs.auth.currentUser;
+    final hasil = await _fs.db.runTransaction((tx) async {
+      final snap = await tx.get(_fs.col('work_orders').doc(id));
+      if (!snap.exists) return 'hilang';
+      final m = snap.data()!;
+      final st = '${m['status']}'.toUpperCase();
+      if (st == 'SELESAI') return 'sudah';
+      if (st == 'PROSES') return 'proses';
+      tx.set(_fs.col('work_orders').doc(id), {
+        'status': 'PROSES',
+        'ambilAt': FieldValue.serverTimestamp(),
+        'ambilOleh': {'uid': me?.uid ?? '', 'email': me?.email ?? ''},
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      tx.set(_fs.col('work_orders').doc(id).collection('riwayat').doc(), {
+        'aksi': 'AMBIL_PDI',
+        'olehUid': me?.uid ?? '',
+        'olehEmail': me?.email ?? '',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      return 'ok';
+    });
+    return hasil;
+  }
+
   // Selesaikan WO secara atomik + audit (siapa/kapan).
   // Idempoten: WO yang sudah SELESAI tidak berubah (return 'sudah').
   // Return: 'ok' | 'sudah'.

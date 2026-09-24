@@ -294,9 +294,23 @@ class StandbyRepo {
   // perWo: woId -> {noRangka, noMesin}
   Future<int> completeMekanikWithRangka({required String key, required String email, required Map<String, Map<String, String>> perWo}) async {
     var n = 0;
-    // Simpan rangka/mesin dulu (history permanen untuk aftersales tracking).
+    // Simpan rangka/mesin dulu + hitung durasi (history permanen untuk aftersales tracking).
     for (final e in perWo.entries) {
-      await _wo.updateWO(e.key, {'noRangka': e.value['noRangka'], 'noMesin': e.value['noMesin']});
+      final updateData = <String, dynamic>{
+        'noRangka': e.value['noRangka'],
+        'noMesin': e.value['noMesin'],
+      };
+      // Hitung durasiMenit dari ambilAt → selesaiAt (otomatis tercatat).
+      try {
+        final woSnap = await _wo.streamWODoc(e.key).first;
+        final woData = woSnap.data();
+        if (woData != null && woData['ambilAt'] != null) {
+          final ambilDt = (woData['ambilAt'] as dynamic).toDate() as DateTime;
+          final now = DateTime.now();
+          updateData['durasiMenit'] = now.difference(ambilDt).inMinutes;
+        }
+      } catch (_) {}
+      await _wo.updateWO(e.key, updateData);
     }
     final snap = await _doc(key).get();
     final cur = snap.data() ?? {};
