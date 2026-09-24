@@ -13,8 +13,8 @@ class StandbyMath {
     'elvanpramudiansyah@gmail.com',
   ];
   static final anchor = DateTime(2026, 9, 21);
-  static const pit1 = ['wahyusurya16@icloud.com', 'ranggaadisaputra024@gmail.com'];
-  static const pit2 = ['elvanpramudiansyah@gmail.com', 'deejayasa63@gmail.com'];
+  static const pit1 = ['wahyusurya16@icloud.com', 'deejayasa63@gmail.com'];
+  static const pit2 = ['ranggaadisaputra024@gmail.com', 'elvanpramudiansyah@gmail.com'];
 
   static String keyOf(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
