@@ -16,6 +16,7 @@ class _StandbyPageState extends State<StandbyPage> {
   bool _reminderShown = false;
   bool _notifShown = false;
   final Map<String, Map<String, dynamic>> _woCache = {};
+  final Set<String> _inflight = {};
 
   bool get _isMinggu => DateTime.now().weekday == DateTime.sunday;
   String get _key => repo.keyOf(DateTime.now());
@@ -44,6 +45,8 @@ class _StandbyPageState extends State<StandbyPage> {
         actions: [
           IconButton(tooltip: 'History', icon: const Icon(Icons.history),
             onPressed: () => _history()),
+          if (s.isOps || s.isKepalaMekanik) IconButton(tooltip: 'Sinkron dari status WO',
+            icon: const Icon(Icons.sync), onPressed: () => _repair(_key)),
           if (s.isOps) IconButton(tooltip: 'Generate / ubah unit',
             icon: const Icon(Icons.refresh), onPressed: () => _generate()),
         ],
@@ -188,15 +191,21 @@ class _StandbyPageState extends State<StandbyPage> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   Future<void> _loadWOStatuses(Set<String> ids) async {
+    var berubah = false;
     for (final id in ids) {
-      if (_woCache.containsKey(id)) continue;
+      if (_woCache.containsKey(id) || _inflight.contains(id)) continue;
+      _inflight.add(id);
       try {
-        final snap = await woRepo.streamWODoc(id).first;
-        if (snap.exists && snap.data() != null) {
-          _woCache[id] = snap.data()!;
+        final wo = await woRepo.fetchWODoc(id);
+        if (wo != null) {
+          _woCache[id] = wo;
+          berubah = true;
         }
-      } catch (_) {}
+      } catch (_) {} finally {
+        _inflight.remove(id);
+      }
     }
+    if (berubah && mounted) setState(() {});
   }
 
   void _maybeNotifyPDI(List<Map<String, dynamic>> dist, List<Map<String, dynamic>> reqs, String me) {
@@ -600,44 +609,41 @@ class _StandbyPageState extends State<StandbyPage> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // MONITORING PDI — real-time dari work_orders (sinkron dengan Booking PDI)
+  // MONITORING PDI hari ini — dari cache status WO (0 baca tambahan,
+  // hemat kuota; refresh otomatis tiap papan rebuild).
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _monitoringPDI() {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: woRepo.watchWO(),
-      builder: (c, snap) {
-        if (!snap.hasData) return const SizedBox.shrink();
-        final all = snap.data!.where((w) => '${w['kategori']}' == 'PDI').toList();
-        final antre = all.where((w) => '${w['status']}' != 'SELESAI' && '${w['status']}' != 'BATAL').toList();
-        final selesai = all.where((w) => '${w['status']}' == 'SELESAI').toList();
-        return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.monitor_heart, color: Color(0xFF1E3A8A), size: 18),
-            const SizedBox(width: 8),
-            const Expanded(child: Text('Monitoring PDI', style: TextStyle(
-              fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)))),
-            Chip(label: Text('${antre.length} antre'),
-              visualDensity: VisualDensity.compact, backgroundColor: Colors.orange.shade100,
-              labelStyle: const TextStyle(fontSize: 10)),
-            const SizedBox(width: 4),
-            Chip(label: Text('${selesai.length} selesai'),
-              visualDensity: VisualDensity.compact, backgroundColor: Colors.green.shade100,
-              labelStyle: const TextStyle(fontSize: 10)),
-          ]),
-          const SizedBox(height: 8),
-          if (all.isEmpty)
-            const Text('Belum ada PDI terdaftar.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-          ...antre.take(5).map((w) => _pdiItem(w, false)),
-          ...selesai.take(3).map((w) => _pdiItem(w, true)),
-          if (antre.length > 5 || selesai.length > 3)
-            Padding(padding: const EdgeInsets.only(top: 4),
-              child: Text('... dan ${antre.length > 5 ? antre.length - 5 : 0}${selesai.length > 3 ? ' + ${selesai.length - 3}' : ''} lainnya',
-                style: const TextStyle(fontSize: 10, color: Colors.grey))),
-        ])));
-      },
-    );
+    final all = _woCache.values.toList();
+    final antre = all.where((w) =>
+      '${w['status']}'.toUpperCase() != 'SELESAI' &&
+      '${w['status']}'.toUpperCase() != 'BATAL').toList();
+    final selesai = all.where((w) =>
+      '${w['status']}'.toUpperCase() == 'SELESAI').toList();
+    if (all.isEmpty) return const SizedBox.shrink();
+    return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        const Icon(Icons.monitor_heart, color: Color(0xFF1E3A8A), size: 18),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Monitoring PDI hari ini', style: TextStyle(
+          fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)))),
+        Chip(label: Text('${antre.length} antre'),
+          visualDensity: VisualDensity.compact, backgroundColor: Colors.orange.shade100,
+          labelStyle: const TextStyle(fontSize: 10)),
+        const SizedBox(width: 4),
+        Chip(label: Text('${selesai.length} selesai'),
+          visualDensity: VisualDensity.compact, backgroundColor: Colors.green.shade100,
+          labelStyle: const TextStyle(fontSize: 10)),
+      ]),
+      const SizedBox(height: 8),
+      ...antre.take(5).map((w) => _pdiItem(w, false)),
+      ...selesai.take(3).map((w) => _pdiItem(w, true)),
+      if (antre.length > 5 || selesai.length > 3)
+        Padding(padding: const EdgeInsets.only(top: 4),
+          child: Text('... dan ${antre.length > 5 ? antre.length - 5 : 0}${selesai.length > 3 ? ' + ${selesai.length - 3}' : ''} lainnya',
+            style: const TextStyle(fontSize: 10, color: Colors.grey))),
+    ])));
   }
 
   Widget _pdiItem(Map<String, dynamic> w, bool isDone) {
@@ -767,8 +773,8 @@ class _StandbyPageState extends State<StandbyPage> {
     final perWo = <String, Map<String, String>>{};
     for (final id in woIds) {
       try {
-        final wo = await woRepo.streamWODoc(id).first;
-        if (wo.data()?['status'] == 'SELESAI') continue;
+        final wo = await woRepo.fetchWODoc(id);
+        if ('${wo?['status']}'.toUpperCase() == 'SELESAI') continue;
       } catch (_) {}
       final data = await _inputRangkaMesinPerUnit(email.split('@').first);
       if (data == null) return;
@@ -870,23 +876,60 @@ class _StandbyPageState extends State<StandbyPage> {
     }
   }
 
+  // Sinkronkan flag selesai tanggal tsb dari status WO asli (Ops/Kepala).
+  Future<void> _repair(String key) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: Text('Sinkron $key?', style: const TextStyle(fontSize: 14)),
+      content: const Text('Status selesai tiap mekanik dihitung ulang dari '
+        'status WO asli (SELESAI/BATAL = selesai).'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true),
+          child: const Text('Sinkron')),
+      ],
+    ));
+    if (ok != true || !mounted) return;
+    try {
+      final r = await repo.repairDay(key: key);
+      _woCache.clear();
+      if (mounted) {
+        final txt = r.entries.map((e) =>
+          '${(e.key).split('@').first}: ${e.value['done']}/${e.value['total']}').join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(txt.isEmpty ? '✅ $key sinkron (tidak ada WO)' : '✅ $key sinkron — $txt')));
+        setState(() {});
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+    }
+  }
+
   Future<void> _history() async {
+    final s = AuthSession.instance;
+    final bolehRepair = s.isOps || s.isKepalaMekanik;
     showDialog(context: context, builder: (_) => AlertDialog(
       title: const Text('📜 History Standby (30 hari)'),
       content: SizedBox(width: 420, height: 380, child: StreamBuilder<List<Map<String, dynamic>>>(
         stream: repo.watchHistory(),
-        builder: (c, s) {
-          if (!s.hasData) return const Center(child: CircularProgressIndicator());
-          if (s.data!.isEmpty) return const Center(child: Text('Belum ada history.'));
-          return ListView.builder(itemCount: s.data!.length, itemBuilder: (_, i) {
-            final h = s.data![i];
+        builder: (c, sh) {
+          if (!sh.hasData) return const Center(child: CircularProgressIndicator());
+          if (sh.data!.isEmpty) return const Center(child: Text('Belum ada history.'));
+          return ListView.builder(itemCount: sh.data!.length, itemBuilder: (_, i) {
+            final h = sh.data![i];
             final dist = List<Map<String, dynamic>>.from(h['distribusi'] ?? []);
+            final sel = List<String>.from(h['selesai'] ?? []);
             return ListTile(dense: true,
-              title: Text('${h['id']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              title: Text('${h['id']}${sel.isNotEmpty ? ' ✅' : ''}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Text(dist.map((d) =>
                 '${(d['nama'] ?? '').toString().split(' ').first} ${d['unit']}').join(', '),
                 style: const TextStyle(fontSize: 11)),
-              trailing: Text('${h['units'] ?? 0} unit', style: const TextStyle(fontSize: 11)),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('${h['units'] ?? 0} unit', style: const TextStyle(fontSize: 11)),
+                if (bolehRepair) IconButton(tooltip: 'Sinkron',
+                  icon: const Icon(Icons.sync, size: 18),
+                  onPressed: () => _repair('${h['id']}')),
+              ]),
             );
           });
         },

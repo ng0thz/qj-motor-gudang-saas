@@ -302,8 +302,7 @@ class StandbyRepo {
       };
       // Hitung durasiMenit dari ambilAt → selesaiAt (otomatis tercatat).
       try {
-        final woSnap = await _wo.streamWODoc(e.key).first;
-        final woData = woSnap.data();
+        final woData = await _wo.fetchWODoc(e.key);
         if (woData != null && woData['ambilAt'] != null) {
           final ambilDt = (woData['ambilAt'] as dynamic).toDate() as DateTime;
           final now = DateTime.now();
@@ -347,6 +346,53 @@ class StandbyRepo {
     final selesai = List<String>.from(cur['selesai'] ?? []);
     selesai.remove(email);
     await _doc(key).set({'selesai': selesai, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+  }
+
+  // Sinkronkan flag `selesai` dari STATUS WO ASLI (satu sumber kebenaran).
+  // Dipakai Ops saat papan tidak sinkron (mis. WO diselesaikan dari halaman lain).
+  // Return ringkasan per email: {email: {total, done, selesai}}.
+  Future<Map<String, dynamic>> repairDay({required String key}) async {
+    final snap = await _doc(key).get();
+    if (!snap.exists) throw StateError('Dokumen $key tidak ada — Generate dulu.');
+    final cur = snap.data() ?? {};
+    final owner = <String, String>{}; // woId -> email
+    for (final d in List<Map<String, dynamic>>.from(cur['distribusi'] ?? [])) {
+      for (final id in ((d['woIds'] as List?) ?? []).cast<String>()) {
+        owner[id] = '${d['email']}';
+      }
+    }
+    for (final q in List<Map<String, dynamic>>.from(cur['requests'] ?? [])) {
+      for (final id in ((q['woIds'] as List?) ?? []).cast<String>()) {
+        owner[id] = '${q['email']}';
+      }
+    }
+    final total = <String, int>{};
+    final done = <String, int>{};
+    for (final e in owner.entries) {
+      total[e.value] = (total[e.value] ?? 0) + 1;
+      try {
+        final wo = await _wo.fetchWODoc(e.key);
+        final st = '${wo?['status'] ?? ''}'.toUpperCase();
+        if (st == 'SELESAI' || st == 'BATAL') {
+          done[e.value] = (done[e.value] ?? 0) + 1;
+        }
+      } catch (_) {}
+    }
+    final selesai = <String>[];
+    final ringkas = <String, dynamic>{};
+    for (final em in total.keys) {
+      final t = total[em] ?? 0;
+      final dn = done[em] ?? 0;
+      final ok = t > 0 && dn >= t;
+      if (ok) selesai.add(em);
+      ringkas[em] = {'total': t, 'done': dn, 'selesai': ok};
+    }
+    await _doc(key).set({
+      'selesai': selesai,
+      'disinkronAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return ringkas;
   }
 
   // Legacy tanpa rangka (untuk WO non-PDI).

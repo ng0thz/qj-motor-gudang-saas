@@ -520,6 +520,13 @@ class StockRepository {
     return _fs.col('work_orders').doc(id).snapshots(includeMetadataChanges: true);
   }
 
+  // Ambil 1 WO sekali baca (hemat kuota, tanpa listener permanen).
+  Future<Map<String, dynamic>?> fetchWODoc(String id) async {
+    final d = await _fs.col('work_orders').doc(id).get();
+    if (!d.exists || d.data() == null) return null;
+    return {'id': d.id, ...d.data()!};
+  }
+
   // Laporan closing harian: agregasi WO + mutasi hari ini + stok kritis + PO
   Future<List<Map<String, dynamic>>> fetchMovementsSince(DateTime start) async {
     final s = await _fs.col('stock_movements')
