@@ -31,6 +31,8 @@ class AuthSession {
   bool get canStandby => isLoggedIn && counterRoles.contains(role);
   bool get canStartOpname => isLoggedIn &&
       (role == 'staff_gudang' || role == 'kepala_mekanik' || isOps);
+  // Lihat daftar peralatan: semua role penghitung. Kelola: staff/kepala/ops (di halaman).
+  bool get canPeralatan => isLoggedIn && counterRoles.contains(role);
 
   void clear() {
     tenantId = 'qj-motor';

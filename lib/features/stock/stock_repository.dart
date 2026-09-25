@@ -31,6 +31,57 @@ class StockRepository {
     return snap.docs.map((d)=> Sparepart.fromDoc(d)).toList();
   }
 
+  // Ambil part per zona rak LANGSUNG dari server (hemat baca untuk 10rb+ SKU).
+  // Tanpa composite index (satu field + orderBy field yang sama).
+  // Zona kosong = fallback ke fetchAll3000 (perilaku lama).
+  Future<List<Sparepart>> fetchByZona(List<String> zona) async {
+    final zs = zona.map((e) => e.trim().toUpperCase())
+        .where((e) => e.isNotEmpty).toSet().toList();
+    if (zs.isEmpty) return fetchAll3000();
+    final seen = <String>{};
+    final out = <Sparepart>[];
+    for (final z in zs) {
+      for (final prefix in <String>{z, z.toLowerCase()}) {
+        final snap = await _fs.col('spareparts')
+            .where('alamat', isGreaterThanOrEqualTo: prefix)
+            .where('alamat', isLessThan: '$prefix\uf8ff')
+            .orderBy('alamat')
+            .limit(4000)
+            .get();
+        for (final d in snap.docs) {
+          if (seen.add(d.id)) out.add(Sparepart.fromDoc(d));
+        }
+      }
+    }
+    return out;
+  }
+
+  // Simpan banyak hitungan sekaligus, batch 400/komit (anti-crash batch 500).
+  // rows: [{kode, stokSistem, stokFisik}]. Return jumlah tersimpan.
+  Future<int> saveCountsBatch({required String opnameId, required List<Map<String, dynamic>> rows}) async {
+    const size = 400;
+    final me = _fs.auth.currentUser;
+    final by = me?.email ?? me?.uid ?? 'demo';
+    var n = 0;
+    for (var i = 0; i < rows.length; i += size) {
+      final batch = _fs.db.batch();
+      for (final r in rows.skip(i).take(size)) {
+        final fisik = r['stokFisik'] as int;
+        final sistem = r['stokSistem'] as int;
+        final sel = fisik - sistem;
+        batch.set(_fs.col('stock_opnames').doc(opnameId).collection('items').doc(r['kode'] as String), {
+          'kode': r['kode'], 'stokSistem': sistem, 'stokFisik': fisik, 'selisih': sel,
+          'status': sel == 0 ? 'COCOK' : (sel > 0 ? 'LEBIH' : 'KURANG'),
+          'countedAt': FieldValue.serverTimestamp(),
+          'countedBy': by,
+        }, SetOptions(merge: true));
+        n++;
+      }
+      await batch.commit();
+    }
+    return n;
+  }
+
   // Scan cocok ke: kode, barcode primer, atau barcode supplier (barcodes[])
   Future<Sparepart?> getByBarcode(String barcode) async {
     final code = barcode.trim();
@@ -300,13 +351,23 @@ class StockRepository {
     return list;
   }
 
+  // Approve di-chunk 400 operasi/komit (1 batch maks 500 — sesi besar
+  // 10rb item akan crash tanpa chunk ini).
   Future<void> approveOpname({required String opnameId, required bool approve}) async {
     final items = await _fs.col('stock_opnames').doc(opnameId).collection('items').get();
-    final batch = _fs.db.batch();
+    var batch = _fs.db.batch();
+    var ops = 0;
+    Future<void> flush() async {
+      if (ops == 0) return;
+      await batch.commit();
+      batch = _fs.db.batch();
+      ops = 0;
+    }
     batch.update(_fs.col('stock_opnames').doc(opnameId), {
       'status': approve ? 'APPROVED' : 'REJECTED',
       'approvedAt': FieldValue.serverTimestamp(),
     });
+    ops++;
     if (approve) {
       for (final d in items.docs) {
         final m = d.data();
@@ -324,10 +385,12 @@ class StockRepository {
             'stok': FieldValue.increment(selisih),
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
+          ops += 2;
+          if (ops >= 400) await flush();
         }
       }
     }
-    await batch.commit();
+    await flush();
   }
 
   // Direktori tim untuk dropdown mekanik (filter role di client agar tanpa index komposit).

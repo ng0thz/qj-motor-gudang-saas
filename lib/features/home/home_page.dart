@@ -12,6 +12,7 @@ import '../stock/forecast_page.dart';
 import '../stock/import_update_page.dart';
 import '../stock/label_batch_page.dart';
 import '../stock/opname_page.dart';
+import '../stock/peralatan_page.dart';
 import '../stock/stock_page.dart';
 import '../stock/stock_repository.dart';
 import '../stock/workorder_page.dart';
@@ -87,6 +88,8 @@ class _HomePageState extends State<HomePage> {
         ['Booking PDI', 'Jadwal unit baru', Icons.event_available, [const Color(0xFFDB2777), const Color(0xFF9D174D)], const PdiBookingPage()],
       ['Closing Harian', 'Laporan A–F + WA', Icons.assessment, [const Color(0xFF7C3AED), const Color(0xFF5B21B6)], const ClosingReportPage()],
       ['Opname', 'Hitung + variance', Icons.fact_check, [const Color(0xFF0284C7), const Color(0xFF075985)], const OpnamePage()],
+      if (s.canPeralatan)
+        ['Peralatan', 'Alat bengkel + cek fisik', Icons.handyman, [const Color(0xFF0F766E), const Color(0xFF134E4A)], const PeralatanPage()],
       ['Alert & PO', 'Stok kritis', Icons.warning_amber_rounded, [const Color(0xFFF59E0B), const Color(0xFFB45309)], const AlertPOPage()],
       ['Forecast', 'Prediksi kebutuhan', Icons.trending_up, [const Color(0xFF059669), const Color(0xFF065F46)], const ForecastPage()],
       ['Dashboard', 'Nilai & analitik', Icons.dashboard, [const Color(0xFF475569), const Color(0xFF1E293B)], const DashboardPage()],

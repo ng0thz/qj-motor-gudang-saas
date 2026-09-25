@@ -52,31 +52,48 @@ class _OpnamePageState extends State<OpnamePage> {
   }
 
   Future<void> _join(String id, Map<String, dynamic>? info) async {
-    final all = await repo.fetchAll3000();
     final zona = (info != null && (info['scopeZona'] as List?) != null)
         ? (info['scopeZona'] as List).map((e) => '$e'.trim().toUpperCase()).toList()
         : zonaCtrl.text.split(',').map((e) => e.trim().toUpperCase()).toList();
+    // Query per zona di server (hemat baca untuk 10rb+ SKU, bukan tarik semua).
+    final all = await repo.fetchByZona(zona);
     if (!mounted) return;
     setState(() {
       opnameId = id;
       sesi = info;
-      list = all.where((p) => zona.any((z) => p.alamat.toUpperCase().startsWith(z))).take(2000).toList();
+      list = all.take(2000).toList();
       for (final p in list) { fisik[p.kode] = TextEditingController(text: '${p.stok}'); }
     });
   }
 
+  // Simpan HANYA yang berubah (hasil scan / edit manual beda dari sistem),
+  // batch 400/komit. Yang belum dihitung tetap "belum dihitung" (jujur di review).
   Future<void> _saveAll() async {
-    var n = 0;
+    final rows = <Map<String, dynamic>>[];
     for (final p in list) {
       final cur = counted[p.kode];
-      final f = cur != null
-          ? (cur['stokFisik'] as int? ?? p.stok)
-          : (int.tryParse(fisik[p.kode]?.text ?? '') ?? p.stok);
-      await repo.saveCount(opnameId: opnameId!, kode: p.kode, stokSistem: p.stok, stokFisik: f);
-      n++;
+      if (cur != null) {
+        rows.add({'kode': p.kode, 'stokSistem': p.stok,
+          'stokFisik': cur['stokFisik'] as int? ?? p.stok});
+        continue;
+      }
+      final f = int.tryParse(fisik[p.kode]?.text ?? '');
+      if (f != null && f != p.stok) {
+        rows.add({'kode': p.kode, 'stokSistem': p.stok, 'stokFisik': f});
+      }
     }
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$n hasil hitung tersimpan, siap review')));
+    if (rows.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada perubahan — semua sama dengan sistem')));
+      return;
+    }
+    try {
+      final n = await repo.saveCountsBatch(opnameId: opnameId!, rows: rows);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$n perubahan tersimpan (dari ${list.length} part), siap review')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal simpan: $e')));
+    }
   }
 
   // Scan cepat: cocok -> dialog jumlah; tak cocok -> tawar daftar baru.

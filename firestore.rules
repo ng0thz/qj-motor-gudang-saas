@@ -90,6 +90,12 @@ service cloud.firestore {
         allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
+      // Peralatan bengkel: baca semua penghitung, kelola staff/kepala/ops, hapus ops.
+      match /peralatan/{kode} {
+        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow create, update: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
+        allow delete: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
+      }
       // Master FRT (warranty & service): baca semua login, tulis ops
       match /frt_warranty/{id} {
         allow read: if isSignedIn() && (tenant() == tenantId);
