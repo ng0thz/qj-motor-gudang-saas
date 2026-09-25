@@ -27,6 +27,19 @@ void main() {
     expect(JadwalMath.pairOf(DateTime(2026, 10, 2)), 0);
     expect(JadwalMath.pairOf(DateTime(2026, 10, 3)), 1);
   });
+  test('Jumat 25 Sep (P0): Pit 1 = Asahatta, Pit 2 = Elvan', () {
+    final m = JadwalMath.penataanSore(DateTime(2026, 9, 25));
+    expect(m[1], 'deejayasa63@gmail.com');
+    expect(m[2], 'elvanpramudiansyah@gmail.com');
+  });
+  test('Sabtu 26 Sep (P1): Pit 1 = Wahyu, Pit 2 = Rangga', () {
+    final m = JadwalMath.penataanSore(DateTime(2026, 9, 26));
+    expect(m[1], 'wahyusurya16@icloud.com');
+    expect(m[2], 'ranggaadisaputra024@gmail.com');
+  });
+  test('Minggu penataan kosong (OFF)', () {
+    expect(JadwalMath.penataanSore(DateTime(2026, 9, 27)), isEmpty);
+  });
   test('Minggu 4 Okt OFF, Senin 5 Okt = Pair 0', () {
     expect(JadwalMath.pairOf(DateTime(2026, 10, 4)), -1);
     expect(JadwalMath.pairOf(DateTime(2026, 10, 5)), 0);

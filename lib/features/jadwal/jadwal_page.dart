@@ -56,11 +56,11 @@ class _JadwalPageState extends State<JadwalPage> {
               return ListView(padding: const EdgeInsets.all(12), children: [
                 _kartuSiang(names),
                 const SizedBox(height: 10),
-                _kalender(names),
-                const SizedBox(height: 10),
-                _sectionHead('🟢 KEBERSIHAN PIT — SORE', 'Senin–Sabtu', const Color(0xFF16A34A)),
+                _sectionHead('🧰 PENATAAN ALAT & TOOLS — SORE', 'Senin–Sabtu', const Color(0xFF16A34A)),
                 _pitCard(1, day, names),
                 _pitCard(2, day, names),
+                const SizedBox(height: 10),
+                _kalender(names),
               ]);
             },
           );
@@ -236,21 +236,26 @@ class _JadwalPageState extends State<JadwalPage> {
     ));
   }
 
-  // ── Kebersihan pit sore (pindah dari Standby PDI) ─────────────────────
+  // ── Penataan Alat & Tools sore (pindah dari Standby PDI) ──────────────
+  // Petugas = anggota pit yang TIDAK piket siang hari ini.
   Widget _pitCard(int pit, Map<String, dynamic>? day, Map<String, String> names) {
     final s = AuthSession.instance;
     final info = day?[pit == 1 ? 'pit1' : 'pit2'];
     final done = info != null;
-    final anggota = (pit == 1 ? StandbyRepo.pit1 : StandbyRepo.pit2)
-        .map((e) => _nama(names, e).split(' ').first).join(' + ');
+    final petugas = JadwalMath.penataanSore(DateTime.now())[pit];
+    final namaPetugas = petugas == null
+        ? (pit == 1 ? StandbyRepo.pit1 : StandbyRepo.pit2)
+            .map((e) => _nama(names, e).split(' ').first).join(' + ')
+        : _nama(names, petugas);
     final telat = _lewat1730() && !done;
     return Card(color: telat ? Colors.red.shade50 : null, child: ListTile(
-      leading: Icon(Icons.cleaning_services,
+      leading: Icon(Icons.handyman,
         color: done ? Colors.green : telat ? Colors.red : Colors.grey),
-      title: Text('PIT $pit • $anggota${done ? ' ✅' : ''}${telat ? ' • BELUM DIBERSIHKAN' : ''}',
+      title: Text('PIT $pit • $namaPetugas${done ? ' ✅' : ''}${telat ? ' • BELUM DITATA' : ''}',
         style: TextStyle(fontWeight: FontWeight.bold,
           color: telat ? Colors.red : null)),
-      subtitle: Text(done ? 'Oleh ${info['oleh']} • ${_jam(info['at'])}' : 'Sore sebelum tutup',
+      subtitle: Text(done ? 'Oleh ${info['oleh']} • ${_jam(info['at'])}'
+        : 'Penataan alat & tools • sore sebelum tutup',
         style: const TextStyle(fontSize: 11)),
       trailing: !done && (s.isKepalaMekanik || s.isOps || s.role == 'mekanik')
           ? ElevatedButton(

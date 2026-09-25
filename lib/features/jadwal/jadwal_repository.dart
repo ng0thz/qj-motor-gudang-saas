@@ -45,6 +45,25 @@ class JadwalMath {
     if (p < 0) return [];
     return p == 0 ? pair0 : pair1;
   }
+
+  // Pit tetap: Pit 1 = Wahyu + Asahatta, Pit 2 = Rangga + Elvan.
+  static const pit1 = ['wahyusurya16@icloud.com', 'deejayasa63@gmail.com'];
+  static const pit2 = ['ranggaadisaputra024@gmail.com', 'elvanpramudiansyah@gmail.com'];
+
+  // Penataan Alat & Tools sore: tiap pit dikerjakan anggota yang TIDAK piket siang.
+  // Contoh: piket siang Asahatta+Elvan -> Pit 1 = Wahyu, Pit 2 = Rangga.
+  // Return {1: email, 2: email}; kosong saat Minggu (OFF).
+  static Map<int, String> penataanSore(DateTime d) {
+    final siang = pairEmails(d);
+    if (siang.isEmpty) return {};
+    String pick(List<String> pit) {
+      for (final e in pit) {
+        if (!siang.contains(e)) return e;
+      }
+      return pit.first;
+    }
+    return {1: pick(pit1), 2: pick(pit2)};
+  }
 }
 
 // Check-off piket siang 12:00-13:00.
