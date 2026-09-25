@@ -5,6 +5,7 @@ import '../../core/session.dart';
 import '../../core/qj_theme.dart';
 import '../../core/qj_anim.dart';
 import '../standby/standby_repository.dart';
+import '../jadwal/jadwal_page.dart';
 import '../stock/alert_po_page.dart';
 import '../stock/closing_report_page.dart';
 import '../stock/dashboard_page.dart';
@@ -83,7 +84,9 @@ class _HomePageState extends State<HomePage> {
       ['Work Order', 'FRT jasa otomatis', Icons.build, [const Color(0xFF1B2A4A), const Color(0xFF2E4A7A)], const WorkOrderPage()],
       ['Tracking', 'Riwayat per nopol', Icons.manage_search, [const Color(0xFF0E7C5B), const Color(0xFF0A5C44)], const WorkOrderTrackPage()],
       if (s.canStandby)
-        ['Standby PDI', 'Rotasi + SK + pit', Icons.event_available, [const Color(0xFF1E3A8A), const Color(0xFF3B82F6)], const StandbyPage()],
+        ['Standby PDI', 'Rotasi + SK', Icons.event_available, [const Color(0xFF1E3A8A), const Color(0xFF3B82F6)], const StandbyPage()],
+      if (s.canJadwal)
+        ['Jadwal Bengkel', 'Piket siang + pit sore', Icons.calendar_month, [const Color(0xFF0E7C5B), const Color(0xFF0A5C44)], const JadwalPage()],
       if (s.canBookPDI)
         ['Booking PDI', 'Jadwal unit baru', Icons.event_available, [const Color(0xFFDB2777), const Color(0xFF9D174D)], const PdiBookingPage()],
       ['Closing Harian', 'Laporan A–F + WA', Icons.assessment, [const Color(0xFF7C3AED), const Color(0xFF5B21B6)], const ClosingReportPage()],

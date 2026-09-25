@@ -13,7 +13,6 @@ class StandbyPage extends StatefulWidget {
 class _StandbyPageState extends State<StandbyPage> {
   final repo = StandbyRepo();
   final woRepo = StockRepository();
-  bool _reminderShown = false;
   bool _notifShown = false;
   final Map<String, Map<String, dynamic>> _woCache = {};
   final Set<String> _inflight = {};
@@ -121,7 +120,6 @@ class _StandbyPageState extends State<StandbyPage> {
     _loadWOStatuses(allWoIds);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeRemind(day);
       _maybeNotifyPDI(dist, reqs, me);
     });
 
@@ -176,10 +174,7 @@ class _StandbyPageState extends State<StandbyPage> {
       // Monitoring PDI real-time (langsung dari work_orders, bukan standby_harian).
       _monitoringPDI(),
       const SizedBox(height: 10),
-      _sectionHead('🟢 KEBERSIHAN PIT — SORE', 'Senin–Sabtu', const Color(0xFF16A34A)),
-      _pitCard(1, day, names, s),
-      _pitCard(2, day, names, s),
-      const SizedBox(height: 10),
+      // Kebersihan pit pindah ke menu Jadwal Bengkel.
       _nextStrip(names, tab),
       const SizedBox(height: 10),
       _saldo(tab, hut, names),
@@ -506,61 +501,7 @@ class _StandbyPageState extends State<StandbyPage> {
     ));
   }
 
-  Widget _pitCard(int pit, Map<String, dynamic> day, Map<String, String> names, AuthSession s) {
-    final info = day[pit == 1 ? 'pit1' : 'pit2'];
-    final done = info != null;
-    final anggota = (pit == 1 ? StandbyRepo.pit1 : StandbyRepo.pit2)
-        .map((e) => _nama(names, e).split(' ').first).join(' + ');
-    final telat = _lewat1730() && !done;
-    return Card(color: telat ? Colors.red.shade50 : null, child: ListTile(
-      leading: Icon(Icons.cleaning_services,
-        color: done ? Colors.green : telat ? Colors.red : Colors.grey),
-      title: Text('PIT $pit • $anggota${done ? ' ✅' : ''}${telat ? ' • BELUM DIBERSIHKAN' : ''}',
-        style: TextStyle(fontWeight: FontWeight.bold,
-          color: telat ? Colors.red : null)),
-      subtitle: Text(done ? 'Oleh ${info['oleh']} • ${_jam(info['at'])}' : 'Sore sebelum tutup',
-        style: const TextStyle(fontSize: 11)),
-      trailing: !done && (s.isKepalaMekanik || s.isOps || s.role == 'mekanik')
-          ? ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-              onPressed: () => repo.pitCheck(key: _key, pit: pit),
-              child: const Text('Sudah dibersihkan', style: TextStyle(color: Colors.white)))
-          : null,
-    ));
-  }
-
-  bool _lewat1730() {
-    final n = DateTime.now();
-    return n.hour > 17 || (n.hour == 17 && n.minute >= 30);
-  }
-
-  void _maybeRemind(Map<String, dynamic> day) {
-    if (_reminderShown || !_lewat1730() || !mounted) return;
-    final s = AuthSession.instance;
-    final bengkel = s.isKepalaMekanik || s.role == 'mekanik' || s.isOps;
-    if (!bengkel) return;
-    if (day['pit1'] == null || day['pit2'] == null) {
-      _reminderShown = true;
-      showDialog(context: context, builder: (_) => AlertDialog(
-        title: const Text('⏰ Kebersihan Pit (17:30)'),
-        content: const Text('Sudah lewat 17:30 dan ada pit yang belum check-off. '
-          'Pastikan pit dibersihkan sebelum tutup.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
-            child: const Text('Ingatkan lagi nanti')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-            onPressed: () {
-              Navigator.pop(context);
-              if (day['pit1'] == null) repo.pitCheck(key: _key, pit: 1);
-              if (day['pit2'] == null) repo.pitCheck(key: _key, pit: 2);
-            },
-            child: const Text('Sudah dibersihkan', style: TextStyle(color: Colors.white))),
-        ],
-      ));
-    }
-  }
-
+  // Kebersihan pit pindah ke menu Jadwal Bengkel (jadwal_page.dart).
   Widget _nextStrip(Map<String, String> names, Map<String, dynamic> tab) {
     final now = DateTime.now();
     final items = <Widget>[];
@@ -668,15 +609,6 @@ class _StandbyPageState extends State<StandbyPage> {
         style: const TextStyle(fontSize: 10)),
       isThreeLine: rangka.isNotEmpty,
     );
-  }
-
-  String _jam(dynamic ts) {
-    try {
-      final d = (ts as dynamic).toDate() as DateTime;
-      return DateFormat('HH:mm').format(d);
-    } catch (_) {
-      return '';
-    }
   }
 
   Future<Map<String, String>?> _inputRangkaMesinPerUnit(String nama) async {

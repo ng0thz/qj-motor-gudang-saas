@@ -110,6 +110,12 @@ service cloud.firestore {
         allow read: if isSignedIn() && (tenant() == tenantId);
         allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
+      // Piket siang kebersihan + standby 12:00-13:00: baca semua login,
+      // check-off oleh peran bengkel+sales+ops (pola standby_harian).
+      match /piket_siang/{tgl} {
+        allow read: if isSignedIn() && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+      }
       // Direktori tim (nama + peran + aktif): dibaca semua login untuk
       // dropdown mekanik, ditulis hanya ops. Disinkron dari Kelola User.
       match /team/{uid} {

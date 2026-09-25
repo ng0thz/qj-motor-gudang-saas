@@ -33,6 +33,8 @@ class AuthSession {
       (role == 'staff_gudang' || role == 'kepala_mekanik' || isOps);
   // Lihat daftar peralatan: semua role penghitung. Kelola: staff/kepala/ops (di halaman).
   bool get canPeralatan => isLoggedIn && counterRoles.contains(role);
+  // Jadwal bengkel (piket siang + pit sore): semua role penghitung.
+  bool get canJadwal => isLoggedIn && counterRoles.contains(role);
 
   void clear() {
     tenantId = 'qj-motor';
