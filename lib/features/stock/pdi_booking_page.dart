@@ -1,12 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/session.dart';
 import 'motor_class.dart';
 import 'stock_repository.dart';
 // Catatan: Timestamp dipakai untuk tglSiap/tglKirim.
-// Halaman ini KHUSUS Web (admin_sales bekerja dari desktop).
+// Halaman ini bisa dibuka di Web (desktop) maupun APK (HP).
 
 // Booking PDI oleh Admin Sales: tipe motor, warna, tanggal dipersiapkan,
 // tanggal + jam pengiriman. Masuk sebagai WO kategori PDI status OPEN.
@@ -33,16 +32,6 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!kIsWeb) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Booking PDI')),
-        body: const Center(child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('Booking PDI hanya lewat Web (desktop).\nBuka aplikasi web di laptop/PC.',
-            textAlign: TextAlign.center),
-        )),
-      );
-    }
     if (!AuthSession.instance.canBookPDI) {
       return Scaffold(
         appBar: AppBar(title: const Text('Booking PDI')),
@@ -51,7 +40,9 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
     }
     return Scaffold(
       appBar: AppBar(title: const Text('QJ Motor - Booking PDI'), backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 700),
+        child: ListView(padding: const EdgeInsets.all(16), children: [
         DropdownButtonFormField<String>(value: model,
           decoration: const InputDecoration(labelText: 'Tipe motor', border: OutlineInputBorder()),
           items: motorMaster.map((m) => DropdownMenuItem(value: m.model, child: Text('${m.model} (${m.kelas})'))).toList(),
@@ -155,7 +146,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
             );
           },
         ),
-      ]),
+      ]))),
     );
   }
 

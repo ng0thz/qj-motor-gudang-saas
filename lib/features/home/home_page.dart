@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/auth_service.dart';
@@ -84,8 +83,8 @@ class _HomePageState extends State<HomePage> {
       ['Tracking', 'Riwayat per nopol', Icons.manage_search, [const Color(0xFF0E7C5B), const Color(0xFF0A5C44)], const WorkOrderTrackPage()],
       if (s.canStandby)
         ['Standby PDI', 'Rotasi + SK + pit', Icons.event_available, [const Color(0xFF1E3A8A), const Color(0xFF3B82F6)], const StandbyPage()],
-      if (s.canBookPDI && kIsWeb)
-        ['Booking PDI', 'Jadwal unit baru (Web)', Icons.event_available, [const Color(0xFFDB2777), const Color(0xFF9D174D)], const PdiBookingPage()],
+      if (s.canBookPDI)
+        ['Booking PDI', 'Jadwal unit baru', Icons.event_available, [const Color(0xFFDB2777), const Color(0xFF9D174D)], const PdiBookingPage()],
       ['Closing Harian', 'Laporan A–F + WA', Icons.assessment, [const Color(0xFF7C3AED), const Color(0xFF5B21B6)], const ClosingReportPage()],
       ['Opname', 'Hitung + variance', Icons.fact_check, [const Color(0xFF0284C7), const Color(0xFF075985)], const OpnamePage()],
       ['Alert & PO', 'Stok kritis', Icons.warning_amber_rounded, [const Color(0xFFF59E0B), const Color(0xFFB45309)], const AlertPOPage()],
