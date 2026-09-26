@@ -56,7 +56,7 @@ class _JadwalPageState extends State<JadwalPage> {
               return ListView(padding: const EdgeInsets.all(12), children: [
                 _kartuSiang(names),
                 const SizedBox(height: 10),
-                _sectionHead('🧰 PENATAAN ALAT & TOOLS — SORE', 'Senin–Sabtu', const Color(0xFF16A34A)),
+                _sectionHead('Jadwal Kebersihan & Pit Sore jam 17:30', 'Senin–Sabtu', const Color(0xFF16A34A)),
                 _pitCard(1, day, names),
                 _pitCard(2, day, names),
                 const SizedBox(height: 10),
@@ -112,9 +112,9 @@ class _JadwalPageState extends State<JadwalPage> {
               color: done ? const Color(0xFF16A34A) : _pairColor(pair), width: 3),
             borderRadius: BorderRadius.circular(16)),
           child: Column(children: [
-            const Text('🧹 PIKET SIANG — KEBERSIHAN + STANDBY',
+            const Text('Jadwal Standby Bengkel Siang',
               style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1B2A4A))),
-            const Text('Jam 12:00 – 13:00',
+            const Text('jam 12:00 - 13:00',
               style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB45309))),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: emails.map((e) =>
