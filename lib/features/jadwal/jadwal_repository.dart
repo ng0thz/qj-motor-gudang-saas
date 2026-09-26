@@ -46,6 +46,13 @@ class JadwalMath {
     return p == 0 ? pair0 : pair1;
   }
 
+  // Batas check-off penataan sore: Senin-Jumat 17:30, Sabtu 15:30, Minggu OFF ('').
+  static String batasSore(DateTime d) {
+    if (d.weekday == DateTime.sunday) return '';
+    if (d.weekday == DateTime.saturday) return '15:30';
+    return '17:30';
+  }
+
   // Pit tetap: Pit 1 = Wahyu + Asahatta, Pit 2 = Rangga + Elvan.
   static const pit1 = ['wahyusurya16@icloud.com', 'deejayasa63@gmail.com'];
   static const pit2 = ['ranggaadisaputra024@gmail.com', 'elvanpramudiansyah@gmail.com'];

@@ -56,9 +56,15 @@ class _JadwalPageState extends State<JadwalPage> {
               return ListView(padding: const EdgeInsets.all(12), children: [
                 _kartuSiang(names),
                 const SizedBox(height: 10),
-                _sectionHead('Jadwal Kebersihan & Pit Sore jam 17:30', 'Senin–Sabtu', const Color(0xFF16A34A)),
-                _pitCard(1, day, names),
-                _pitCard(2, day, names),
+                _sectionHead('Jadwal Kebersihan & Pit Sore', 'Senin–Jumat 17:30 • Sabtu 15:30', const Color(0xFF16A34A)),
+                if (DateTime.now().weekday == DateTime.sunday)
+                  const Card(child: Padding(padding: EdgeInsets.all(16),
+                    child: Text('Minggu OFF — tidak ada penataan sore.',
+                      style: TextStyle(color: Colors.grey)))),
+                if (DateTime.now().weekday != DateTime.sunday) ...[
+                  _pitCard(1, day, names),
+                  _pitCard(2, day, names),
+                ],
                 const SizedBox(height: 10),
                 _kalender(names),
               ]);
@@ -247,7 +253,8 @@ class _JadwalPageState extends State<JadwalPage> {
         ? (pit == 1 ? StandbyRepo.pit1 : StandbyRepo.pit2)
             .map((e) => _nama(names, e).split(' ').first).join(' + ')
         : _nama(names, petugas);
-    final telat = _lewat1730() && !done;
+    final batas = JadwalMath.batasSore(DateTime.now());
+    final telat = _lewatBatas() && !done;
     return Card(color: telat ? Colors.red.shade50 : null, child: ListTile(
       leading: Icon(Icons.handyman,
         color: done ? Colors.green : telat ? Colors.red : Colors.grey),
@@ -255,7 +262,7 @@ class _JadwalPageState extends State<JadwalPage> {
         style: TextStyle(fontWeight: FontWeight.bold,
           color: telat ? Colors.red : null)),
       subtitle: Text(done ? 'Oleh ${info['oleh']} • ${_jam(info['at'])}'
-        : 'Penataan alat & tools • sore sebelum tutup',
+        : 'Penataan alat & tools • batas $batas',
         style: const TextStyle(fontSize: 11)),
       trailing: !done && (s.isKepalaMekanik || s.isOps || s.role == 'mekanik')
           ? ElevatedButton(
@@ -266,21 +273,25 @@ class _JadwalPageState extends State<JadwalPage> {
     ));
   }
 
-  bool _lewat1730() {
+  // Senin-Jumat 17:30, Sabtu 15:30, Minggu tidak mengingatkan.
+  bool _lewatBatas() {
     final n = DateTime.now();
-    return n.hour > 17 || (n.hour == 17 && n.minute >= 30);
+    if (n.weekday == DateTime.sunday) return false;
+    final b = n.weekday == DateTime.saturday ? 15 : 17;
+    return n.hour > b || (n.hour == b && n.minute >= 30);
   }
 
   void _maybeRemind(Map<String, dynamic> day) {
-    if (_reminderShown || !_lewat1730() || !mounted) return;
+    if (_reminderShown || !_lewatBatas() || !mounted) return;
     final s = AuthSession.instance;
     final bengkel = s.isKepalaMekanik || s.role == 'mekanik' || s.isOps;
     if (!bengkel) return;
     if (day['pit1'] == null || day['pit2'] == null) {
+      final batas = JadwalMath.batasSore(DateTime.now());
       _reminderShown = true;
       showDialog(context: context, builder: (_) => AlertDialog(
-        title: const Text('⏰ Kebersihan Pit (17:30)'),
-        content: const Text('Sudah lewat 17:30 dan ada pit yang belum check-off. '
+        title: Text('⏰ Kebersihan Pit ($batas)'),
+        content: Text('Sudah lewat $batas dan ada pit yang belum check-off. '
           'Pastikan pit dibersihkan sebelum tutup.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context),

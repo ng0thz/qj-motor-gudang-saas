@@ -40,6 +40,12 @@ void main() {
   test('Minggu penataan kosong (OFF)', () {
     expect(JadwalMath.penataanSore(DateTime(2026, 9, 27)), isEmpty);
   });
+  test('Batas sore: Jumat 17:30, Sabtu 15:30, Minggu kosong', () {
+    expect(JadwalMath.batasSore(DateTime(2026, 9, 25)), '17:30');
+    expect(JadwalMath.batasSore(DateTime(2026, 9, 26)), '15:30');
+    expect(JadwalMath.batasSore(DateTime(2026, 9, 27)), '');
+    expect(JadwalMath.batasSore(DateTime(2026, 9, 28)), '17:30');
+  });
   test('Minggu 4 Okt OFF, Senin 5 Okt = Pair 0', () {
     expect(JadwalMath.pairOf(DateTime(2026, 10, 4)), -1);
     expect(JadwalMath.pairOf(DateTime(2026, 10, 5)), 0);
