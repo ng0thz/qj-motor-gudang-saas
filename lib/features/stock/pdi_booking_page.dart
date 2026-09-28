@@ -26,6 +26,20 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
   TimeOfDay? jamKirim;
   String? mekanikUid; // opsional: request ke mekanik tertentu (kosong = antre umum)
   bool loading = false;
+  // Future monitoring di-cache: future inline di build akan refetch
+  // (200 dokumen) setiap setState — di HP bikin list kedip + boros kuota.
+  Future<List<Map<String, dynamic>>>? _pdiFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _pdiFuture = repo.fetchPDIBookings();
+  }
+
+  void _refreshPDI() {
+    if (!mounted) return;
+    setState(() => _pdiFuture = repo.fetchPDIBookings());
+  }
 
   String _tgl(DateTime? d) => d == null ? 'Pilih tanggal' : DateFormat('dd/MM/yyyy').format(d);
   String _jam(TimeOfDay? t) => t == null ? 'Pilih jam' : t.format(context);
@@ -123,7 +137,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
         const Text('Monitoring pergerakan PDI', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 6),
         FutureBuilder<List<Map<String, dynamic>>>(
-          future: repo.fetchPDIBookings(),
+          future: _pdiFuture,
           builder: (c, s) {
             if (!s.hasData) return const LinearProgressIndicator();
             final antre = s.data!.where((w) => '${w['status']}'.toUpperCase() != 'SELESAI').toList();
@@ -217,23 +231,26 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       ],
     ));
     if (ok2 != true) return _inputRangkaMesin();
+    // Tombol Verifikasi WAJIB membandingkan isi (di HP user menekan tombol,
+    // bukan submit keyboard) — tanpa ini verifikasi selalu lolos.
+    final verifyCtrl = TextEditingController();
     final ok3 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       title: const Text('Verifikasi 2/2', style: TextStyle(fontSize: 14)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('Ketik ulang No. Rangka untuk verifikasi akhir.', style: TextStyle(fontSize: 12)),
         const SizedBox(height: 8),
-        TextField(autofocus: true, textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(hintText: rangka, border: const OutlineInputBorder()),
-          onSubmitted: (v) => Navigator.pop(context, v.trim().toUpperCase() == rangka),
-        ),
+        TextField(controller: verifyCtrl, autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(hintText: rangka, border: const OutlineInputBorder())),
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Verifikasi')),
+        ElevatedButton(onPressed: () {
+          final v = verifyCtrl.text.trim().toUpperCase();
+          Navigator.pop(context, v.isNotEmpty && v == rangka);
+        }, child: const Text('Verifikasi')),
       ],
     ));
-    // Simpler: cek manual jika user tekan Verifikasi tanpa cek isi — kita anggap lolos jika ok3==true.
-    // Untuk keamanan, validasi string: minta ulang dengan TextField terpisah.
     if (ok3 != true) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Verifikasi gagal — ulangi.')));
@@ -324,19 +341,10 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
           'noMesin': data['noMesin'],
         });
         await repo.selesaikanWO(w['id'] as String);
-        // Update standby_harian agar tracking sinkron.
-        try {
-          final key = '${DateFormat('yyyy-MM-dd').format(DateTime.now())}';
-          await repo.updateWO(w['id'] as String, {
-            'noRangka': data['noRangka'],
-            'noMesin': data['noMesin'],
-          });
-          // Simpan jejak history PDI permanen untuk aftersales (query by noRangka/noMesin).
-        } catch (_) {}
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PDI diperbarui')));
-        setState(() {});
+        _refreshPDI();
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
@@ -470,6 +478,6 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
       alamatCtrl.clear();
     });
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Booking PDI tersimpan')));
-    if (mounted) setState(() {});
+    _refreshPDI();
   }
 }
