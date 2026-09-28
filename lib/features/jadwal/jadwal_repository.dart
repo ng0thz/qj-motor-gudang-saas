@@ -57,15 +57,17 @@ class JadwalMath {
   static const pit1 = ['wahyusurya16@icloud.com', 'deejayasa63@gmail.com'];
   static const pit2 = ['ranggaadisaputra024@gmail.com', 'elvanpramudiansyah@gmail.com'];
 
-  // Penataan Alat & Tools sore: tiap pit dikerjakan anggota yang TIDAK piket siang.
-  // Contoh: piket siang Asahatta+Elvan -> Pit 1 = Wahyu, Pit 2 = Rangga.
+  // Penataan Alat & Tools sore: SAMA dengan jadwal standby siang.
+  // Pit 1 (Wahyu+Asahatta) dan Pit 2 (Rangga+Elvan) dikerjakan oleh
+  // anggota pit yang SEDANG piket siang. Contoh: siang Elvan+Asahatta (P1)
+  // -> Pit 1 = Asahatta, Pit 2 = Elvan. Senin-Jumat 17:30, Sabtu 15:30.
   // Return {1: email, 2: email}; kosong saat Minggu (OFF).
   static Map<int, String> penataanSore(DateTime d) {
     final siang = pairEmails(d);
     if (siang.isEmpty) return {};
     String pick(List<String> pit) {
       for (final e in pit) {
-        if (!siang.contains(e)) return e;
+        if (siang.contains(e)) return e;
       }
       return pit.first;
     }

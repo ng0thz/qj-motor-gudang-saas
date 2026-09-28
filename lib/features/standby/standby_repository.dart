@@ -55,8 +55,12 @@ class StandbyMath {
     required Map<String, int> tab,
     required Map<String, int> hutang,
     DateTime? now,
+    int reserveSK = 0,
   }) {
-    final rotasi = rotasiHariIni(now);
+    final rotasiAll = rotasiHariIni(now);
+    final rotasi = reserveSK > 0
+        ? rotasiAll.take((rotasiAll.length - reserveSK).clamp(1, rotasiAll.length)).toList()
+        : rotasiAll;
     final dist = <Map<String, dynamic>>[];
     var sisa = units;
     for (final e in rotasi) {
@@ -145,14 +149,16 @@ class StandbyRepo {
   List<String> rotasiHariIni([DateTime? now]) => StandbyMath.rotasiHariIni(now);
 
   // Distribusi murni (port hitungPDIReguler + utang request).
+  // reserveSK = 2 menjamin 2 mekanik standby Servis Kunjung.
   // tab/hutang: email -> saldo. Return {dist, tabBaru, hutangBaru}.
   Map<String, dynamic> distribute({
     required int units,
     required Map<String, int> tab,
     required Map<String, int> hutang,
     DateTime? now,
+    int reserveSK = 0,
   }) =>
-      StandbyMath.distribute(units: units, tab: tab, hutang: hutang, now: now);
+      StandbyMath.distribute(units: units, tab: tab, hutang: hutang, now: now, reserveSK: reserveSK);
 
   DocumentReference<Map<String, dynamic>> _doc(String key) =>
       _fs.col('standby_harian').doc(key);
@@ -196,7 +202,8 @@ class StandbyRepo {
     }
     final antre = await _antreanUmum();
     final units = unitsOverride ?? antre.length;
-    final r = distribute(units: units, tab: tab, hutang: hut);
+    // Jaga 2 mekanik untuk Servis Kunjung (sisa unit tetap di antrean).
+    final r = distribute(units: units, tab: tab, hutang: hut, reserveSK: 2);
 
     // uid + nama dari direktori team.
     final emailUid = <String, String>{};

@@ -611,66 +611,85 @@ class _StandbyPageState extends State<StandbyPage> {
     );
   }
 
+  // Anti-loopback HP: barrierDismissible=false, Batal/back = keluar total,
+  // salah ketik = ulangi langkah yang sama saja.
   Future<Map<String, String>?> _inputRangkaMesinPerUnit(String nama) async {
     final rangkaCtrl = TextEditingController();
     final mesinCtrl = TextEditingController();
-    final ok1 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: Text('Selesai PDI — $nama', style: const TextStyle(fontSize: 14)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: rangkaCtrl, textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(labelText: 'No. Rangka *', border: OutlineInputBorder())),
-        const SizedBox(height: 10),
-        TextField(controller: mesinCtrl, textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(labelText: 'No. Mesin *', border: OutlineInputBorder())),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lanjut')),
-      ],
-    ));
-    if (ok1 != true) return null;
-    final rangka = rangkaCtrl.text.trim().toUpperCase();
-    final mesin = mesinCtrl.text.trim().toUpperCase();
-    if (rangka.isEmpty || mesin.isEmpty) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Rangka & Mesin wajib diisi.')));
-      return _inputRangkaMesinPerUnit(nama);
+    late String rangka;
+    late String mesin;
+    while (true) {
+      final ok1 = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+        title: Text('Selesai PDI — $nama', style: const TextStyle(fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: rangkaCtrl, textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(labelText: 'No. Rangka *', border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: mesinCtrl, textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(labelText: 'No. Mesin *', border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lanjut')),
+        ],
+      ));
+      if (ok1 == null) return null;
+      if (ok1 != true) continue;
+      rangka = rangkaCtrl.text.trim().toUpperCase();
+      mesin = mesinCtrl.text.trim().toUpperCase();
+      if (rangka.isEmpty || mesin.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rangka & Mesin wajib diisi.')));
+        continue;
+      }
+      final ok2 = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+        title: const Text('Konfirmasi 1/2', style: TextStyle(fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Rangka: $rangka', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('Mesin: $mesin', style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Sudah benar?', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Perbaiki')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Benar')),
+        ],
+      ));
+      if (ok2 == null) return null;
+      if (ok2 == true) break;
     }
-    final ok2 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Konfirmasi 1/2', style: TextStyle(fontSize: 14)),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Rangka: $rangka', style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text('Mesin: $mesin', style: const TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        const Text('Sudah benar?', style: TextStyle(fontSize: 12, color: Colors.grey)),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Perbaiki')),
-        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Ya, Benar')),
-      ],
-    ));
-    if (ok2 != true) return _inputRangkaMesinPerUnit(nama);
     final verifyCtrl = TextEditingController();
-    final ok3 = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
-      title: const Text('Verifikasi 2/2', style: TextStyle(fontSize: 14)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('Ketik ulang No. Rangka:', style: TextStyle(fontSize: 12)),
-        const SizedBox(height: 8),
-        TextField(controller: verifyCtrl, autofocus: true, textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(hintText: rangka, border: const OutlineInputBorder())),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-        ElevatedButton(onPressed: () {
-          final v = verifyCtrl.text.trim().toUpperCase();
-          Navigator.pop(context, v == rangka);
-        }, child: const Text('Verifikasi')),
-      ],
-    ));
-    if (ok3 != true) {
+    while (true) {
+      final ok3 = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+        title: const Text('Verifikasi 2/2', style: TextStyle(fontSize: 14)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Ketik ulang No. Rangka:', style: TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          TextField(controller: verifyCtrl, autofocus: true, textCapitalization: TextCapitalization.characters,
+            decoration: InputDecoration(hintText: rangka, border: const OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          ElevatedButton(onPressed: () {
+            final v = verifyCtrl.text.trim().toUpperCase();
+            Navigator.pop(context, v.isNotEmpty && v == rangka);
+          }, child: const Text('Verifikasi')),
+        ],
+      ));
+      if (ok3 == null) return null;
+      if (ok3 == true) break;
+      verifyCtrl.clear();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verifikasi gagal — ulangi.')));
-      return _inputRangkaMesinPerUnit(nama);
+        const SnackBar(content: Text('Ketik ulang tidak cocok — coba lagi.')));
     }
     return {'noRangka': rangka, 'noMesin': mesin};
   }
@@ -709,7 +728,11 @@ class _StandbyPageState extends State<StandbyPage> {
         if ('${wo?['status']}'.toUpperCase() == 'SELESAI') continue;
       } catch (_) {}
       final data = await _inputRangkaMesinPerUnit(email.split('@').first);
-      if (data == null) return;
+      if (data == null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dibatalkan — WO tidak berubah.')));
+        return;
+      }
       perWo[id] = data;
     }
     if (perWo.isEmpty) {
