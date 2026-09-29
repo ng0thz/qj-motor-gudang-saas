@@ -357,6 +357,10 @@ class StandbyRepo {
     await _doc(key).set({'selesai': selesai, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
   }
 
+  Future<void> resetDay(String key) async {
+    await _doc(key).delete();
+  }
+
   // Sinkronkan flag `selesai` dari STATUS WO ASLI (satu sumber kebenaran).
   // Dipakai Ops saat papan tidak sinkron (mis. WO diselesaikan dari halaman lain).
   // Return ringkasan per email: {email: {total, done, selesai}}.

@@ -46,6 +46,8 @@ class _StandbyPageState extends State<StandbyPage> {
             onPressed: () => _history()),
           if (s.isOps || s.isKepalaMekanik) IconButton(tooltip: 'Sinkron dari status WO',
             icon: const Icon(Icons.sync), onPressed: () => _repair(_key)),
+          if (s.isOps) IconButton(tooltip: 'Reset hari ini',
+            icon: const Icon(Icons.delete_forever), onPressed: () => _resetDay()),
           if (s.isOps) IconButton(tooltip: 'Generate / ubah unit',
             icon: const Icon(Icons.refresh), onPressed: () => _generate()),
         ],
@@ -832,6 +834,27 @@ class _StandbyPageState extends State<StandbyPage> {
   }
 
   // Sinkronkan flag selesai tanggal tsb dari status WO asli (Ops/Kepala).
+  Future<void> _resetDay() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('Reset standby hari ini?', style: TextStyle(fontSize: 14)),
+      content: const Text('Hapus jadwal hari ini (distribusi + selesai + pit). Bisa Generate ulang.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Reset', style: TextStyle(color: Colors.white))),
+      ],
+    ));
+    if (ok != true || !mounted) return;
+    try {
+      await repo.resetDay(_key);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('🗑️ $_key direset')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e')));
+    }
+  }
+
   Future<void> _repair(String key) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
       title: Text('Sinkron $key?', style: const TextStyle(fontSize: 14)),

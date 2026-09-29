@@ -340,6 +340,11 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
                 backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white),
               onPressed: () => Navigator.pop(ctx, 'simpan'),
               child: const Text('Simpan mekanik')),
+          if (s.isOps)
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, 'hapus'),
+              child: const Text('Hapus')),
         ],
       )));
     if (aksi == null || !mounted) return;
@@ -353,6 +358,19 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
         await repo.updateWO(w['id'] as String, {'mekanik': mekNama, 'mekanikUid': mekUid ?? ''});
       } else if (aksi == 'proses') {
         await repo.updateWO(w['id'] as String, {'status': 'PROSES'});
+      } else if (aksi == 'hapus') {
+        final ya = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+          title: const Text('Hapus booking ini?', style: TextStyle(fontSize: 14)),
+          content: Text('${w['motor'] ?? ''} • ${w['customer'] ?? ''}'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+            ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Hapus', style: TextStyle(color: Colors.white))),
+          ],
+        ));
+        if (ya != true) return;
+        await repo.deleteWO(w['id'] as String);
       } else if (aksi == 'selesai') {
         final data = await _inputRangkaMesin();
         if (data == null) {

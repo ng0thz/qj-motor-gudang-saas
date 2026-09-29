@@ -544,6 +544,10 @@ class StockRepository {
     if (n > 0) await batch.commit();
   }
 
+  Future<void> deleteWO(String id) async {
+    await _fs.col('work_orders').doc(id).delete();
+  }
+
   Stream<List<Map<String, dynamic>>> watchWO({String? status}) {
     Query<Map<String, dynamic>> q = _fs.col('work_orders').orderBy('createdAt', descending: true).limit(100);
     if (status != null) q = q.where('status', isEqualTo: status);
