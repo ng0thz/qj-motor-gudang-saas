@@ -3,7 +3,9 @@ import '../../core/firebase_service.dart';
 import '../stock/stock_repository.dart';
 
 // Matematika rotasi murni TANPA Firebase (bisa unit-test).
-// Rotasi D->A->B->C jangkar Senin 21 Sep 2026 = Asahatta (D).
+// Rotasi D->A->B->C jangkar Rabu 23 Sep 2026 = Asahatta (D).
+// Geser dari 21→23 agar 28/09=Asahatta, 29/09=Wahyu sesuai roster lapangan
+// (Minggu OFF tetap tidak dihitung).
 class StandbyMath {
   static const kap = 3;
   static const rotasiEmail = [
@@ -12,7 +14,7 @@ class StandbyMath {
     'ranggaadisaputra024@gmail.com',
     'elvanpramudiansyah@gmail.com',
   ];
-  static final anchor = DateTime(2026, 9, 21);
+  static final anchor = DateTime(2026, 9, 23);
   static const pit1 = ['wahyusurya16@icloud.com', 'deejayasa63@gmail.com'];
   static const pit2 = ['ranggaadisaputra024@gmail.com', 'elvanpramudiansyah@gmail.com'];
 
