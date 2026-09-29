@@ -62,13 +62,13 @@ service cloud.firestore {
         // admin_sales hanya boleh buat PDI (bukan WO servis)
         allow create: if (isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"])
           || (isRole("admin_sales") && request.resource.data.kategori == 'PDI')) && tenantFieldOk(tenantId);
-        allow update: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
-        allow delete: if isRole("ops_manager") && (tenant() == tenantId);
+        allow update: if (isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) || (isRole("admin_sales") && resource.data.kategori == 'PDI')) && tenantFieldOk(tenantId);
+        allow delete: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Jejak audit tap Selesai/Batal (ditulis transaksi, hanya tambah)
       match /work_orders/{id}/riwayat/{rid} {
         allow read: if isSignedIn() && (tenant() == tenantId);
-        allow create: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
+        allow create: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
         allow update, delete: if false;
       }
       match /purchase_orders/{id} {
