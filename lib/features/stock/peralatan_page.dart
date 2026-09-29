@@ -5,6 +5,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../core/session.dart';
+import 'peralatan_import_page.dart';
 import 'peralatan_repository.dart';
 
 // Pendataan peralatan bengkel: daftar + kondisi + cek fisik opname + PDF.
@@ -72,6 +73,8 @@ class _PeralatanPageState extends State<PeralatanPage> {
         title: const Text('QJ Motor - Peralatan'),
         backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white,
         actions: [
+          IconButton(tooltip: 'Import CSV', icon: const Icon(Icons.upload_file),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PeralatanImportPage()))),
           IconButton(tooltip: 'Export PDF', icon: exporting
             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.picture_as_pdf),
