@@ -10,12 +10,14 @@ class AuthSession {
   String uid = '';
 
   bool get isLoggedIn => uid.isNotEmpty;
-  bool get isOps => role == 'ops_manager' || role == 'super_admin';
+  bool get isSuperAdmin => role == 'super_admin';
+  bool get isOps => role == 'ops_manager' || isSuperAdmin;
   bool get isStaff => role == 'staff_gudang' || isOps;
   bool get isFrontdesk => role == 'frontdesk' || isOps;
   bool get isKepalaMekanik => role == 'kepala_mekanik' || isOps;
   bool get isAdminSales => role == 'admin_sales' || isOps;
-  bool get canBookPDI => role == 'admin_sales' || role == 'frontdesk' || isOps;
+  bool get isAdminPDI => role == 'admin_pdi' || isOps;
+  bool get canBookPDI => role == 'admin_sales' || role == 'admin_pdi' || role == 'frontdesk' || isOps;
   bool get canApprove => isOps;
   bool get canManageMaster => isStaff; // spareparts, rak, barcode, harga
   bool get canTransact => role == 'staff_gudang' || role == 'frontdesk' || role == 'kepala_mekanik' || isOps;
@@ -25,7 +27,7 @@ class AuthSession {
   // Buat sesi opname: staff/kepala/ops. Approve: ops saja.
   static const counterRoles = [
     'staff_gudang', 'frontdesk', 'kepala_mekanik', 'mekanik',
-    'admin_sales', 'ops_manager', 'super_admin',
+    'admin_sales', 'admin_pdi', 'ops_manager', 'super_admin',
   ];
   bool get canCountOpname => isLoggedIn && counterRoles.contains(role);
   bool get canStandby => isLoggedIn && counterRoles.contains(role);

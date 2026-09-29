@@ -340,7 +340,7 @@ class _PdiBookingPageState extends State<PdiBookingPage> {
                 backgroundColor: const Color(0xFF1B2A4A), foregroundColor: Colors.white),
               onPressed: () => Navigator.pop(ctx, 'simpan'),
               child: const Text('Simpan mekanik')),
-          if (s.isOps)
+          if (s.isSuperAdmin)
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               onPressed: () => Navigator.pop(ctx, 'hapus'),

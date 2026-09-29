@@ -46,7 +46,7 @@ class _StandbyPageState extends State<StandbyPage> {
             onPressed: () => _history()),
           if (s.isOps || s.isKepalaMekanik) IconButton(tooltip: 'Sinkron dari status WO',
             icon: const Icon(Icons.sync), onPressed: () => _repair(_key)),
-          if (s.isOps) IconButton(tooltip: 'Reset hari ini',
+          if (s.isSuperAdmin) IconButton(tooltip: 'Reset hari ini',
             icon: const Icon(Icons.delete_forever), onPressed: () => _resetDay()),
           if (s.isOps) IconButton(tooltip: 'Generate / ubah unit',
             icon: const Icon(Icons.refresh), onPressed: () => _generate()),

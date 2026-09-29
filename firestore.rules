@@ -59,16 +59,16 @@ service cloud.firestore {
       }
       match /work_orders/{id} {
         allow read: if isSignedIn() && (tenant() == tenantId);
-        // admin_sales hanya boleh buat PDI (bukan WO servis)
+        // admin_sales / admin_pdi hanya boleh buat PDI (bukan WO servis)
         allow create: if (isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"])
-          || (isRole("admin_sales") && request.resource.data.kategori == 'PDI')) && tenantFieldOk(tenantId);
-        allow update: if (isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) || (isRole("admin_sales") && resource.data.kategori == 'PDI')) && tenantFieldOk(tenantId);
-        allow delete: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
+          || (isOneOf(["admin_sales", "admin_pdi"]) && request.resource.data.kategori == 'PDI')) && tenantFieldOk(tenantId);
+        allow update: if (isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "ops_manager", "super_admin"]) || (isOneOf(["admin_sales", "admin_pdi"]) && resource.data.kategori == 'PDI')) && tenantFieldOk(tenantId);
+        allow delete: if isRole("super_admin") && (tenant() == tenantId);
       }
       // Jejak audit tap Selesai/Batal (ditulis transaksi, hanya tambah)
       match /work_orders/{id}/riwayat/{rid} {
         allow read: if isSignedIn() && (tenant() == tenantId);
-        allow create: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
+        allow create: if isOneOf(["frontdesk", "staff_gudang", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
         allow update, delete: if false;
       }
       match /purchase_orders/{id} {
@@ -79,7 +79,7 @@ service cloud.firestore {
       }
       match /stock_opnames/{id} {
         // Baca sesi: semua penghitung (multi-HP gabung). Buat sesi: staff/kepala/ops.
-        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow create: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
         // Approve (update status) hanya ops_manager
         allow update: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
@@ -87,12 +87,12 @@ service cloud.firestore {
       }
       match /stock_opnames/{id}/items/{kode} {
         // Input hitung: semua HP terdaftar (kecuali direksi read-only). Tertulis siapa penghitung.
-        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
-        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Peralatan bengkel: baca semua penghitung, kelola staff/kepala/ops, hapus ops.
       match /peralatan/{kode} {
-        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow read: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && (tenant() == tenantId);
         allow create, update: if isOneOf(["staff_gudang", "kepala_mekanik", "ops_manager", "super_admin"]) && tenantFieldOk(tenantId);
         allow delete: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
@@ -105,16 +105,17 @@ service cloud.firestore {
         allow read: if isSignedIn() && (tenant() == tenantId);
         allow write: if isOneOf(["ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
-      // Standby ambil PDI harian: baca semua login, tulis peran bengkel+sales+ops.
+      // Standby ambil PDI harian: baca semua login, tulis peran bengkel+sales+ops, hapus/reset hanya super_admin.
       match /standby_harian/{tgl} {
         allow read: if isSignedIn() && (tenant() == tenantId);
-        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow create, update: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow delete: if isRole("super_admin") && (tenant() == tenantId);
       }
       // Piket siang kebersihan + standby 12:00-13:00: baca semua login,
       // check-off oleh peran bengkel+sales+ops (pola standby_harian).
       match /piket_siang/{tgl} {
         allow read: if isSignedIn() && (tenant() == tenantId);
-        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "ops_manager", "super_admin"]) && (tenant() == tenantId);
+        allow write: if isOneOf(["staff_gudang", "frontdesk", "kepala_mekanik", "mekanik", "admin_sales", "admin_pdi", "ops_manager", "super_admin"]) && (tenant() == tenantId);
       }
       // Direktori tim (nama + peran + aktif): dibaca semua login untuk
       // dropdown mekanik, ditulis hanya ops. Disinkron dari Kelola User.
